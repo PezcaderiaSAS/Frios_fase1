@@ -1,0 +1,427 @@
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                // --- ESTADO GENERAL ---
+                vista: 'dashboard', // Vista inicial
+                loading: false,
+                mensajeCarga: 'Cargando...',
+
+                // --- DATOS MAESTROS (Cargados del Backend) ---
+                clientes: [],
+                productos: [],
+
+                // --- DASHBOARD ---
+                dashboardCliente: '',
+                dashboardData: null, // Se llena con { contrato, ocupacion, historial }
+
+                // --- PRODUCTOS (ALTA MASIVA) ---
+                mostrarAltaMasiva: false,
+                nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
+
+                // --- CLIENTES (CRUD) ---
+                modoEdicionCliente: false,
+                formCliente: {
+                    id: '',
+                    nombre: '',
+                    nit: '',
+                    telefono: '',
+                    posiciones: 10,       // Default
+                    precioPosicion: 450000, // Default
+                    precioExceso: 85        // Default
+                },
+
+                // --- MOVIMIENTOS (ENTRADA/SALIDA) ---
+                busquedaId: '', // Para buscar movimiento antiguo
+                modoEdicionMovimiento: false, // true si estamos editando uno existente
+
+                // Formulario Entrada
+                form: {
+                    id: '',
+                    idCliente: '',
+                    docReferencia: '',
+                    fecha: new Date().toISOString().split('T')[0],
+                    items: []
+                },
+
+                // Formulario Salida (Picking)
+                formSalida: { idCliente: '', docReferencia: '' },
+                carritoSalida: [], // Carrito de productos a despachar
+
+                // --- HISTORIAL ---
+                historialData: [],
+                historialFiltro: '',
+
+                // --- FACTURACIÓN ---
+                formBilling: { idCliente: '', inicio: '', fin: '' },
+                billingResult: null
+            }
+        },
+        computed: {
+            hoy() { return new Date().toLocaleDateString(); },
+
+            // Totales Calculados (Entrada)
+            totalCajas() { return this.form.items.reduce((s, i) => s + (i.cantidadCajas || 0), 0).toFixed(1); },
+            totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); },
+
+            // Totales Calculados (Salida)
+            totalPesoSalida() { return this.carritoSalida.reduce((s, i) => s + (i.salidaKg || 0), 0).toFixed(2); }
+        },
+        methods: {
+            // ==========================================
+            // 1. INICIALIZACIÓN Y CARGA DE DATOS
+            // ==========================================
+            async iniciarApp() {
+                this.recargarDatos();
+                this.agregarFila(); // Inicializar una fila vacía en Entrada
+            },
+
+            recargarDatos() {
+                this.loading = true;
+
+                // 1. Cargar Productos con Stock Calculado
+                google.script.run.withSuccessHandler(res => {
+                    this.productos = res;
+                }).apiGetProductosConStock();
+
+                // 2. Cargar Clientes con Info de Contratos
+                google.script.run.withSuccessHandler(res => {
+                    this.clientes = res;
+                    this.loading = false;
+                }).apiGetClientes();
+            },
+
+            // ==========================================
+            // 2. LÓGICA DEL DASHBOARD
+            // ==========================================
+            cargarDashboard() {
+                if (!this.dashboardCliente) return;
+
+                this.loading = true;
+                this.mensajeCarga = "Analizando estado de cuenta...";
+                this.dashboardData = null;
+
+                google.script.run
+                    .withSuccessHandler(res => {
+                        this.loading = false;
+                        if (res.success) {
+                            this.dashboardData = res;
+                        } else {
+                            alert("Aviso: " + res.error); // Mostrar error pero no romper
+                            this.dashboardData = res; // Mostrar lo que haya llegado
+                        }
+                    })
+                    .apiGetDashboardData(this.dashboardCliente);
+            },
+
+            // ==========================================
+            // 3. GESTIÓN DE CLIENTES (CREAR / EDITAR)
+            // ==========================================
+
+            // Preparar formulario para Editar
+            cargarClienteParaEditar(cliente) {
+                this.modoEdicionCliente = true;
+                // Mapear datos de la tabla al formulario
+                this.formCliente = {
+                    id: cliente.id,
+                    nombre: cliente.nombre,
+                    nit: cliente.nit,
+                    telefono: '', // (Si tuvieras telefono en la tabla principal, úsalo aquí)
+                    // Extraer del objeto anidado contratoInfo
+                    posiciones: cliente.contratoInfo ? cliente.contratoInfo.posiciones : 10,
+                    precioPosicion: cliente.contratoInfo ? cliente.contratoInfo.precio : 450000,
+                    precioExceso: cliente.contratoInfo ? cliente.contratoInfo.exceso : 85
+                };
+                // Scroll arriba suave
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+
+            cancelarEdicionCliente() {
+                this.modoEdicionCliente = false;
+                this.formCliente = { nombre: '', nit: '', telefono: '', posiciones: 10, precioPosicion: 450000, precioExceso: 85 };
+            },
+
+            // Guardar (Discrimina si es Nuevo o Actualización)
+            procesarCliente() {
+                if (!this.formCliente.nombre) return alert("El nombre es obligatorio");
+
+                this.loading = true;
+                this.mensajeCarga = "Guardando información del cliente...";
+
+                const funcionAPI = this.modoEdicionCliente ? 'apiActualizarCliente' : 'apiGuardarCliente';
+
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    alert(res.message);
+                    this.cancelarEdicionCliente();
+                    this.recargarDatos(); // Refrescar tabla
+                })[funcionAPI](this.formCliente);
+            },
+
+            // ==========================================
+            // 4. GESTIÓN DE PRODUCTOS (ALTA MASIVA)
+            // ==========================================
+            agregarFilaProducto() {
+                this.nuevosProductos.push({ nombre: '', empaque: 'Caja', pesoNominal: 0 });
+            },
+
+            borrarFilaProducto(idx) {
+                if (this.nuevosProductos.length > 1) this.nuevosProductos.splice(idx, 1);
+                else this.nuevosProductos[0] = { nombre: '', empaque: 'Caja', pesoNominal: 0 };
+            },
+
+            guardarProductosMasivo() {
+                const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
+                if (validos.length === 0) return alert("Ingrese al menos un producto.");
+
+                this.loading = true;
+                this.mensajeCarga = `Registrando ${validos.length} productos...`;
+
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    alert(res.message);
+                    this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
+                    this.mostrarAltaMasiva = false;
+                    this.recargarDatos();
+                }).apiGuardarProductosBatch(validos);
+            },
+
+            // ==========================================
+            // 5. MOVIMIENTOS: ENTRADA
+            // ==========================================
+            agregarFila() {
+                this.form.items.push({ idProducto: '', lote: '', cantidadCajas: 0, pesoKg: 0 });
+            },
+
+            borrarFila(idx) { this.form.items.splice(idx, 1); },
+
+            alCambiarProducto(item) {
+                const p = this.productos.find(x => x.id === item.idProducto);
+                if (p) item._pesoBase = p.pesoNominal;
+                this.calcularPesoAuto(item);
+            },
+
+            // Cálculo Automático Peso Entrada (Sugerido)
+            calcularPesoAuto(item) {
+                if (item._pesoBase && item.cantidadCajas) {
+                    item.pesoKg = parseFloat((item.cantidadCajas * item._pesoBase).toFixed(2));
+                }
+            },
+
+            // Helpers UI
+            getDescProducto(id) {
+                const p = this.productos.find(x => x.id === id);
+                return p ? `${p.empaque} de ${p.pesoNominal}kg` : '';
+            },
+
+            // ==========================================
+            // 6. MOVIMIENTOS: SALIDA (PICKING)
+            // ==========================================
+            cargarInventario() {
+                if (!this.formSalida.idCliente) return;
+                this.loading = true;
+                this.mensajeCarga = "Consultando stock disponible...";
+                this.inventarioCliente = [];
+                this.carritoSalida = []; // Limpiar carrito al cambiar cliente
+
+                google.script.run.withSuccessHandler(res => {
+                    this.inventarioCliente = res;
+                    this.loading = false;
+                }).apiGetInventarioCliente(this.formSalida.idCliente);
+            },
+
+            agregarAlCarrito(inv) {
+                // Evitar duplicados
+                if (this.carritoSalida.find(x => x.lote === inv.lote && x.idProducto === inv.idProducto)) {
+                    return alert("Este lote ya está en la orden de salida.");
+                }
+
+                // Buscar peso nominal para el cálculo
+                const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
+                const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
+
+                this.carritoSalida.push({
+                    ...inv,
+                    salidaCajas: 0,
+                    salidaKg: 0,
+                    maxPeso: inv.peso,
+                    maxCajas: inv.cajas,
+                    _pesoNominal: pesoBase
+                });
+            },
+
+            // Cálculo Automático Peso Salida (Editable)
+            calcularPesoSalida(item) {
+                if (item._pesoNominal && item.salidaCajas > 0) {
+                    let sugerido = item.salidaCajas * item._pesoNominal;
+                    // Sugerimos el valor, el usuario puede editarlo después si la caja estaba incompleta
+                    item.salidaKg = parseFloat(sugerido.toFixed(2));
+                }
+            },
+
+            // ==========================================
+            // 7. BÚSQUEDA Y EDICIÓN DE MOVIMIENTOS
+            // ==========================================
+            buscarMovimiento() {
+                if (!this.busquedaId) return;
+                this.loading = true;
+                this.mensajeCarga = "Buscando registro...";
+
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    this.modoEdicionMovimiento = true;
+
+                    // Cargar datos en el formulario de Entrada (reusamos la vista)
+                    this.form = {
+                        id: res.header.id,
+                        idCliente: res.header.idCliente,
+                        docReferencia: res.header.docReferencia,
+                        fecha: res.header.fecha,
+                        items: res.items
+                    };
+
+                    this.vista = 'entrada'; // Forzamos ir a la vista de entrada para editar
+
+                }).withFailureHandler(err => {
+                    this.loading = false;
+                    alert("No se encontró el movimiento: " + err);
+                }).apiGetMovimientoDetalle(this.busquedaId);
+            },
+
+            cancelarEdicionMovimiento() {
+                this.modoEdicionMovimiento = false;
+                this.form = { id: '', idCliente: '', docReferencia: '', fecha: new Date().toISOString().split('T')[0], items: [] };
+                this.busquedaId = '';
+                this.agregarFila();
+            },
+
+            // ==========================================
+            // 8. GUARDADO FINAL (TRANSACCIONES)
+            // ==========================================
+            guardarTransaccion(tipo) {
+                let payload = {};
+                const getNom = (id) => this.clientes.find(c => c.id === id)?.nombre || id;
+
+                // A. Preparar Payload ENTRADA
+                if (tipo === 'ENTRADA') {
+                    if (!this.form.idCliente || this.form.items.length === 0) return alert("Complete los datos obligatorios.");
+
+                    payload = {
+                        id: this.modoEdicionMovimiento ? this.form.id : null, // ID si es edición
+                        tipo: 'ENTRADA',
+                        idCliente: this.form.idCliente,
+                        nombreCliente: getNom(this.form.idCliente),
+                        docReferencia: this.form.docReferencia,
+                        fecha: this.form.fecha,
+                        totalCajas: this.totalCajas,
+                        totalPeso: this.totalPeso,
+                        productos: JSON.parse(JSON.stringify(this.form.items))
+                    };
+                }
+                // B. Preparar Payload SALIDA
+                else {
+                    if (this.carritoSalida.length === 0) return alert("El carrito de salida está vacío.");
+
+                    // Validaciones de stock (visuales y lógicas)
+                    const invalid = this.carritoSalida.find(i => i.salidaKg <= 0 || i.salidaKg > i.maxPeso + 0.1); // +0.1 tolerancia flotante
+                    if (invalid) return alert(`Revise el item ${invalid.lote}: El peso de salida no es válido o excede el stock.`);
+
+                    const sumCajas = this.carritoSalida.reduce((a, b) => a + b.salidaCajas, 0);
+                    const sumPeso = this.carritoSalida.reduce((a, b) => a + b.salidaKg, 0);
+
+                    payload = {
+                        tipo: 'SALIDA',
+                        idCliente: this.formSalida.idCliente,
+                        nombreCliente: getNom(this.formSalida.idCliente),
+                        docReferencia: this.formSalida.docReferencia || 'Despacho',
+                        totalCajas: sumCajas,
+                        totalPeso: sumPeso,
+                        productos: this.carritoSalida.map(i => ({
+                            idProducto: i.idProducto,
+                            lote: i.lote,
+                            cantidadCajas: i.salidaCajas * -1, // Negativo
+                            pesoKg: i.salidaKg * -1            // Negativo
+                        }))
+                    };
+                }
+
+                // C. Enviar al Servidor
+                this.loading = true;
+                this.mensajeCarga = this.modoEdicionMovimiento ? "Actualizando registro..." : "Generando movimiento y PDF...";
+
+                // Decidir función: Guardar Nuevo o Actualizar Existente
+                const funcionAPI = this.modoEdicionMovimiento ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
+
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    if (res.success) {
+                        alert(res.message);
+                        // Abrir PDF si existe (solo al crear nuevo usualmente, o regenerar)
+                        if (res.pdfUrl && res.pdfUrl.startsWith('http')) {
+                            window.open(res.pdfUrl, '_blank');
+                        }
+
+                        // Limpieza post-guardado
+                        if (this.modoEdicionMovimiento) {
+                            this.cancelarEdicionMovimiento();
+                            this.vista = 'movimientos'; // Volver al historial al terminar edición
+                            this.cargarHistorial();     // Recargar lista
+                        } else {
+                            if (tipo === 'ENTRADA') {
+                                this.form.items = [];
+                                this.agregarFila();
+                                this.form.docReferencia = '';
+                            } else {
+                                this.carritoSalida = [];
+                                this.cargarInventario(); // Refrescar stock visual
+                            }
+                        }
+                        this.recargarDatos(); // Actualizar datos globales
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                })[funcionAPI](payload);
+            },
+
+            // ==========================================
+            // 9. MÓDULO HISTORIAL
+            // ==========================================
+            cargarHistorial() {
+                this.loading = true;
+                google.script.run.withSuccessHandler(res => {
+                    this.historialData = res;
+                    this.loading = false;
+                }).apiGetHistorialCompleto();
+            },
+            editarMovimientoDesdeHistorial(id) {
+                this.busquedaId = id;
+                this.buscarMovimiento(); // Reutilizamos la función existente
+            },
+
+            // ==========================================
+            // 10. MÓDULO FACTURACIÓN
+            // ==========================================
+            calcularFacturacion() {
+                if (!this.formBilling.idCliente || !this.formBilling.inicio || !this.formBilling.fin) {
+                    return alert("Seleccione cliente y fechas.");
+                }
+
+                this.loading = true;
+                this.mensajeCarga = "Calculando desglose diario (esto puede tardar)...";
+                this.billingResult = null;
+
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    if (res.success) {
+                        this.billingResult = res;
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                }).apiCalcularFacturacion(this.formBilling.idCliente, this.formBilling.inicio, this.formBilling.fin);
+            }
+        },
+        mounted() { this.iniciarApp(); }
+    }).mount('#app');
+</script>

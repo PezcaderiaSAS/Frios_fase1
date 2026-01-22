@@ -1,0 +1,100 @@
+<div class="animate-enter">
+    <!-- Filter Card -->
+    <div class="card border-start border-4 border-primary mb-4">
+        <div class="card-body">
+            <h5 class="fw-bold text-primary mb-3"><i class="fas fa-file-invoice-dollar me-2"></i>Generar Corte de
+                Facturación</h5>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Cliente</label>
+                    <select v-model="formBilling.idCliente" class="form-select">
+                        <option value="" disabled>Seleccione...</option>
+                        <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Desde</label>
+                    <input type="date" v-model="formBilling.inicio" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Hasta</label>
+                    <input type="date" v-model="formBilling.fin" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <button @click="calcularFacturacion" class="btn btn-primary w-100">
+                        <i class="fas fa-calculator me-1"></i> Calcular
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div v-if="billingResult">
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card p-3 text-center h-100 bg-light">
+                    <small class="text-muted fw-bold text-uppercase">Días Totales</small>
+                    <div class="display-6 fw-bold text-dark">{{ billingResult.dias }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card p-3 text-center h-100 bg-white border-info">
+                    <small class="text-muted fw-bold text-uppercase">Base Contrato</small>
+                    <div class="fs-3 fw-bold text-info">${{ billingResult.costoBase.toLocaleString() }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card p-3 text-center h-100 bg-warning-subtle border-0">
+                    <small class="text-warning-emphasis fw-bold text-uppercase">Excedentes</small>
+                    <div class="fs-3 fw-bold text-warning-emphasis">${{ billingResult.costoExcedente.toLocaleString() }}
+                    </div>
+                    <small class="text-muted">{{ billingResult.diasConExcedente }} días con exceso</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card p-3 text-center h-100 bg-dark text-white">
+                    <small class="opacity-50 fw-bold text-uppercase">Total a Pagar</small>
+                    <div class="fs-2 fw-bold">${{ billingResult.totalPagar.toLocaleString() }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Table -->
+        <div class="card">
+            <div class="card-header bg-white">
+                Desglose Diario de Ocupación
+            </div>
+            <div class="table-responsive" style="max-height: 500px;">
+                <table class="table table-sm table-striped mb-0 small">
+                    <thead class="table-light sticky-top" style="z-index: 1;">
+                        <tr>
+                            <th class="ps-4">Fecha</th>
+                            <th class="text-end">Stock (Kg)</th>
+                            <th class="text-end">Pos. Usadas</th>
+                            <th class="text-end">Contratado</th>
+                            <th class="text-end">Excedente</th>
+                            <th class="text-end pe-4">Costo Día</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="dia in billingResult.detalleDiario" :key="dia.fecha"
+                            :class="dia.excedente > 0 ? 'table-warning' : ''">
+                            <td class="ps-4 font-monospace">{{ new Date(dia.fecha).toLocaleDateString() }}</td>
+                            <td class="text-end">{{ dia.stockKg.toLocaleString() }}</td>
+                            <td class="text-end fw-bold">{{ dia.posUsadas.toFixed(2) }}</td>
+                            <td class="text-end text-muted">{{ dia.posContratadas }}</td>
+                            <td class="text-end fw-bold" :class="dia.excedente > 0 ? 'text-danger' : 'text-success'">
+                                {{ dia.excedente > 0 ? '+' + dia.excedente.toFixed(2) : '-' }}
+                            </td>
+                            <td class="text-end pe-4 fw-bold text-dark">
+                                ${{ dia.costoDia.toLocaleString() }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

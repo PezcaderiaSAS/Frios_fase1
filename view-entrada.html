@@ -1,0 +1,96 @@
+<div class="animate-enter">
+    <div class="card border-top border-4 border-success">
+        <div class="card-header bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-success fw-bold"><i class="fas fa-dolly me-2"></i>Entrada de Mercancía</h5>
+                <span class="badge bg-light text-dark border">{{ hoy }}</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Header Form -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Cliente</label>
+                    <select v-model="form.idCliente" class="form-select bg-light fw-bold text-dark">
+                        <option value="" disabled>Seleccione...</option>
+                        <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Documento Ref.</label>
+                    <input type="text" v-model="form.docReferencia" class="form-control" placeholder="Ej: Remisión 123">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Fecha Movimiento</label>
+                    <input type="date" v-model="form.fecha" class="form-control">
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="table-responsive border mb-3 rounded-3">
+                <table class="table mb-0 align-middle">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-3" style="width: 30%">Producto</th>
+                            <th style="width: 20%">Lote</th>
+                            <th style="width: 15%">Vencimiento</th>
+                            <th style="width: 12%">Cajas</th>
+                            <th style="width: 15%">Peso (Kg)</th>
+                            <th style="width: 8%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(item, idx) in form.items" :key="idx">
+                            <td class="ps-3">
+                                <select v-model="item.idProducto" @change="alCambiarProducto(item)"
+                                    class="form-select form-select-sm">
+                                    <option v-for="p in productos" :value="p.id">{{ p.nombre }} ({{ p.empaque }}
+                                        {{p.pesoNominal}}kg)</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" v-model="item.lote" class="form-control form-control-sm"
+                                    placeholder="Lote / Ref">
+                            </td>
+                            <td>
+                                <input type="date" v-model="item.fechaVencimiento" class="form-control form-control-sm">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" v-model.number="item.cantidadCajas"
+                                    @input="calcularPesoAuto(item)"
+                                    class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis">
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" v-model.number="item.pesoKg"
+                                    class="form-control form-control-sm fw-bold bg-success-subtle text-success">
+                            </td>
+                            <td class="text-center">
+                                <button @click="borrarFila(idx)" class="btn btn-sm btn-link text-danger p-0">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <button @click="agregarFila" class="btn btn-link text-decoration-none fw-bold px-0 mb-4">
+                <i class="fas fa-plus-circle me-1"></i> Agregar Producto
+            </button>
+
+            <!-- Footer & Totals -->
+            <div class="d-flex justify-content-between align-items-end pt-3 border-top">
+                <div>
+                    <div class="text-muted small text-uppercase fw-bold">Resumen</div>
+                    <div class="d-flex gap-4 mt-1">
+                        <div>Cajas: <span class="fw-bold">{{ totalCajas }}</span></div>
+                        <div>Peso Net: <span class="fw-bold fs-5 text-success">{{ totalPeso }} Kg</span></div>
+                    </div>
+                </div>
+                <button @click="guardarTransaccion('ENTRADA')" class="btn btn-primary btn-lg shadow">
+                    <i class="fas fa-save me-2"></i> Guardar Entrada
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

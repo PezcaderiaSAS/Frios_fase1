@@ -1,0 +1,14 @@
+# Google Apps Script
+.clasp.json
+.google/
+
+# OS metadata
+thumbs.db
+DerivedData/
+.DS_Store
+
+# Logs and local artifacts
+*.log
+node_modules/
+dist/
+build/

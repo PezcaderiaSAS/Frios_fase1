@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS ColdChain Pro</title>
+    <?!= include('css'); ?>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js" crossorigin="anonymous"></script>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    <div id="app" class="flex-grow-1 d-flex flex-column">
+
+        <!-- Navbar -->
+        <nav class="navbar navbar-expand-lg sticky-top shadow-sm">
+            <div class="container-xl">
+                <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                    <div class="bg-dark text-white rounded p-1 d-flex align-items-center justify-content-center"
+                        style="width: 32px; height: 32px;">
+                        <i class="fas fa-snowflake"></i>
+                    </div>
+                    <div style="line-height: 1;">
+                        <div class="fw-bold fs-6 text-dark tracking-tight">ColdChain</div>
+                        <div class="text-uppercase text-muted" style="font-size: 0.6rem; letter-spacing: 2px;">
+                            Enterprise WMS</div>
+                    </div>
+                </a>
+
+                <div class="d-none d-md-flex gap-1 bg-light p-1 rounded-3 border">
+                    <button @click="vista='dashboard'" :class="['nav-link', vista==='dashboard' ? 'active' : '']">
+                        <i class="fas fa-chart-pie me-1"></i> Dashboard
+                    </button>
+                    <div class="vr my-auto opacity-25"></div>
+                    <button @click="vista='entrada'" :class="['nav-link', vista==='entrada' ? 'active' : '']">
+                        <i class="fas fa-arrow-down text-success me-1"></i> Entrada
+                    </button>
+                    <button @click="vista='salida'" :class="['nav-link', vista==='salida' ? 'active' : '']">
+                        <i class="fas fa-arrow-up text-warning me-1"></i> Salida
+                    </button>
+                    <div class="vr my-auto opacity-25"></div>
+                    <button @click="vista='productos'" :class="['nav-link', vista==='productos' ? 'active' : '']">
+                        Inventario
+                    </button>
+                    <button @click="vista='clientes'" :class="['nav-link', vista==='clientes' ? 'active' : '']">
+                        Clientes
+                    </button>
+                    <div class="vr my-auto opacity-25"></div>
+                    <button @click="{ vista='movimientos'; cargarHistorial(); }"
+                        :class="['nav-link', vista==='movimientos' ? 'active' : '']" title="Historial">
+                        <i class="fas fa-history text-secondary"></i>
+                    </button>
+                    <button @click="vista='billing'" :class="['nav-link', vista==='billing' ? 'active' : '']"
+                        title="Facturación">
+                        <i class="fas fa-file-invoice-dollar text-secondary"></i>
+                    </button>
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center border border-primary-subtle"
+                        style="width: 32px; height: 32px; font-size: 0.75rem;">
+                        U
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container-xl py-4 flex-grow-1">
+
+            <!-- Loader Global -->
+            <transition name="fade">
+                <div v-if="loading" class="loader-overlay">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    </div>
+                    <p class="text-muted fw-bold small text-uppercase letter-spacing-2">{{ mensajeCarga }}</p>
+                </div>
+            </transition>
+
+            <transition name="fade" mode="out-in">
+                <div key="dashboard" v-show="vista === 'dashboard'">
+                    <?!= include('view-dashboard'); ?>
+                </div>
+            </transition>
+            <div v-show="vista === 'clientes'">
+                <?!= include('view-clients'); ?>
+            </div>
+            <div v-show="vista === 'productos'">
+                <?!= include('view-products'); ?>
+            </div>
+            <div v-show="vista === 'entrada'">
+                <?!= include('view-entrada'); ?>
+            </div>
+            <div v-show="vista === 'salida'">
+                <?!= include('view-salida'); ?>
+            </div>
+            <div v-show="vista === 'movimientos'">
+                <?!= include('view-movements'); ?>
+            </div>
+            <div v-show="vista === 'billing'">
+                <?!= include('view-billing'); ?>
+            </div>
+
+        </main>
+    </div>
+
+    <?!= include('js-app'); ?>
+</body>
+
+</html>

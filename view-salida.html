@@ -1,0 +1,125 @@
+<div class="animate-enter">
+    <div class="row g-4">
+        <!-- 1. Selection & Inventory -->
+        <div class="col-md-7">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 text-dark font-bold">1. Selección de Stock</h5>
+                </div>
+                <div class="card-body">
+                    <div
+                        class="alert alert-warning d-flex align-items-center small py-2 mb-3 border-0 bg-warning-subtle text-warning-emphasis">
+                        <i class="fas fa-info-circle me-2"></i> Seleccione un cliente para ver su inventario disponible.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Cliente Origen</label>
+                        <select v-model="formSalida.idCliente" @change="cargarInventario"
+                            class="form-select bg-light fw-bold">
+                            <option value="" disabled>Seleccione...</option>
+                            <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                        </select>
+                    </div>
+
+                    <div v-if="inventarioCliente && inventarioCliente.length > 0"
+                        class="table-responsive border rounded" style="max-height: 400px;">
+                        <table class="table table-sm table-hover mb-0 small">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th class="ps-3">Producto</th>
+                                    <th>Lote</th>
+                                    <th class="text-end">Cajas</th>
+                                    <th class="text-end">Peso</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="inv in inventarioCliente" :key="inv.lote">
+                                    <td class="ps-3">{{ inv.nombreProducto }}</td>
+                                    <td class="font-monospace text-muted">{{ inv.lote }}</td>
+                                    <td class="text-end">{{ inv.cajas.toFixed(1) }}</td>
+                                    <td class="text-end fw-bold text-success">{{ inv.peso.toFixed(2) }}</td>
+                                    <td class="text-end pe-3">
+                                        <button @click="agregarAlCarrito(inv)"
+                                            class="btn btn-sm btn-outline-primary py-0 px-2 font-bold"
+                                            style="font-size: 0.7rem;" title="Agregar al Despacho">
+                                            <i class="fas fa-plus me-1"></i> AGREGAR
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else-if="formSalida.idCliente" class="text-center py-5 text-muted">
+                        Sin existencias disponibles para este cliente.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Picking Cart -->
+        <div class="col-md-5">
+            <div class="card h-100 border-top border-4 border-warning">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 text-warning-emphasis fw-bold"><i class="fas fa-truck-loading me-2"></i>2. Despacho
+                    </h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-3">
+                        <label class="form-label">Referencia / Placa</label>
+                        <input type="text" v-model="formSalida.docReferencia" class="form-control"
+                            placeholder="Datos del transporte...">
+                    </div>
+
+                    <div class="flex-grow-1 overflow-auto pe-2" style="max-height: 400px;">
+                        <div v-if="!carritoSalida || carritoSalida.length === 0"
+                            class="text-center py-5 text-muted border rounded-3 bg-light border-dashed">
+                            Agregue items del inventario
+                        </div>
+
+                        <div v-for="(item, idx) in carritoSalida" :key="idx"
+                            class="card mb-2 shadow-sm border bg-light">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <strong class="small text-truncate w-75">{{ item.nombreProducto }}</strong>
+                                    <button @click="carritoSalida.splice(idx, 1)"
+                                        class="btn-close btn-close-sm"></button>
+                                </div>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-3">
+                                        <label class="text-xs text-muted d-block">Lote</label>
+                                        <span class="font-monospace small">{{ item.lote }}</span>
+                                    </div>
+                                    <div class="col-3">
+                                        <label class="text-xs text-muted d-block">Cajas</label>
+                                        <input type="number" v-model.number="item.salidaCajas"
+                                            @input="calcularPesoSalida(item)" class="form-control form-control-sm">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="text-xs text-muted d-block">Peso Salida</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" v-model.number="item.salidaKg"
+                                                class="form-control fw-bold text-warning-emphasis">
+                                            <span class="input-group-text text-xs">/ {{item.maxPeso.toFixed(1)}}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="d-flex justify-content-between mb-3 fw-bold">
+                            <span>Total Salida:</span>
+                            <span class="text-warning-emphasis fs-5">{{ totalPesoSalida }} Kg</span>
+                        </div>
+                        <button @click="guardarTransaccion('SALIDA')"
+                            class="btn btn-warning w-100 text-white shadow-sm fw-bold">
+                            Confirmar Despacho
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

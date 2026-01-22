@@ -1,0 +1,190 @@
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                vista: 'entrada',
+                loading: false,
+                mensajeCarga: 'Cargando...',
+                mostrarAltaMasiva: false, // Controla la visibilidad del panel lateral
+
+                // Catálogos
+                clientes: [],
+                productos: [],
+
+                // Alta Masiva Productos
+                nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
+
+                // Formulario Cliente (Actualizado con posiciones)
+                formCliente: { nombre: '', nit: '', telefono: '', posiciones: 0 },
+
+                // Entrada
+                form: { idCliente: '', docReferencia: '', fecha: new Date().toISOString().split('T')[0], items: [] },
+
+                // Salida
+                formSalida: { idCliente: '', docReferencia: '' },
+                inventarioCliente: [],
+                carritoSalida: []
+            }
+        },
+        computed: {
+            hoy() { return new Date().toLocaleDateString(); },
+            totalCajas() { return this.form.items.reduce((s, i) => s + (i.cantidadCajas || 0), 0).toFixed(1); },
+            totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); }
+        },
+        methods: {
+            async iniciarApp() {
+                this.recargarDatos();
+                this.agregarFila();
+            },
+            recargarDatos() {
+                this.loading = true;
+                google.script.run.withSuccessHandler(res => {
+                    this.clientes = res.clientes;
+                    this.productos = res.productos;
+                    this.loading = false;
+                }).apiGetDataInicial();
+            },
+
+            // --- PRODUCTOS ---
+            agregarFilaProducto() { this.nuevosProductos.push({ nombre: '', empaque: 'Caja', pesoNominal: 0 }); },
+            borrarFilaProducto(idx) {
+                if (this.nuevosProductos.length > 1) this.nuevosProductos.splice(idx, 1);
+                else this.nuevosProductos[0] = { nombre: '', empaque: 'Caja', pesoNominal: 0 };
+            },
+            guardarProductosMasivo() {
+                const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
+                if (validos.length === 0) return alert("Ingrese datos.");
+                this.loading = true;
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    alert(res.message);
+                    this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
+                    this.mostrarAltaMasiva = false; // Cerrar panel al guardar
+                    this.recargarDatos();
+                }).apiGuardarProductosBatch(validos);
+            },
+
+            // --- CLIENTES ---
+            crearCliente() {
+                if (!this.formCliente.nombre) return alert("Falta nombre");
+                this.loading = true;
+                google.script.run.withSuccessHandler(res => {
+                    alert(res.message);
+                    this.formCliente = { nombre: '', nit: '', telefono: '', posiciones: 0 };
+                    this.recargarDatos();
+                }).apiGuardarCliente(this.formCliente);
+            },
+
+            // --- ENTRADA ---
+            agregarFila() { this.form.items.push({ idProducto: '', lote: '', cantidadCajas: 0, pesoKg: 0 }); },
+            borrarFila(idx) { this.form.items.splice(idx, 1); },
+            alCambiarProducto(item) {
+                const p = this.productos.find(x => x.id === item.idProducto);
+                if (p) item._pesoBase = p.pesoNominal;
+                this.calcularPesoAuto(item);
+            },
+            calcularPesoAuto(item) {
+                if (item._pesoBase && item.cantidadCajas) item.pesoKg = parseFloat((item.cantidadCajas * item._pesoBase).toFixed(2));
+            },
+
+            // --- SALIDA (NUEVA LÓGICA AUTO-CALC) ---
+            cargarInventario() {
+                if (!this.formSalida.idCliente) return;
+                this.loading = true;
+                this.inventarioCliente = [];
+                this.carritoSalida = [];
+                google.script.run.withSuccessHandler(res => {
+                    this.inventarioCliente = res;
+                    this.loading = false;
+                }).apiGetInventarioCliente(this.formSalida.idCliente);
+            },
+            agregarAlCarrito(inv) {
+                if (this.carritoSalida.find(x => x.lote === inv.lote && x.idProducto === inv.idProducto)) return alert("Ya está en lista");
+
+                // Buscamos el Peso Nominal en el catálogo de productos para poder calcular
+                const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
+                const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
+
+                this.carritoSalida.push({
+                    ...inv,
+                    salidaCajas: 0,
+                    salidaKg: 0,
+                    maxPeso: inv.peso,
+                    _pesoNominal: pesoBase // Guardamos esto oculto para el cálculo
+                });
+            },
+            // Función que se activa al escribir en "Cajas" de salida
+            calcularPesoSalida(item) {
+                if (item._pesoNominal && item.salidaCajas > 0) {
+                    // Calculamos: Cajas * PesoNominal
+                    const pesoSugerido = item.salidaCajas * item._pesoNominal;
+                    // Validamos que no se pase del stock disponible
+                    if (pesoSugerido <= item.maxPeso) {
+                        item.salidaKg = parseFloat(pesoSugerido.toFixed(2));
+                    } else {
+                        // Si el cálculo se pasa (ej: caja incompleta), limitamos al maximo o dejamos que el usuario corrija
+                        item.salidaKg = parseFloat(item.maxPeso.toFixed(2));
+                    }
+                }
+            },
+
+            // --- TRANSACCIONES ---
+            guardarTransaccion(tipo) {
+                // ... (Lógica de guardado igual que antes, asegúrate de copiar la versión corregida del paso anterior que incluye el nombre del cliente)
+                // Por brevedad, asumo que mantienes la función de guardado corregida que te di en el turno anterior.
+                // Solo asegúrate de incluirla aquí.
+                let payload = {};
+                const getNom = (id) => this.clientes.find(c => c.id === id)?.nombre || id;
+
+                if (tipo === 'ENTRADA') {
+                    if (!this.form.idCliente || this.form.items.length === 0) return alert("Faltan datos");
+                    payload = {
+                        tipo: 'ENTRADA',
+                        idCliente: this.form.idCliente,
+                        nombreCliente: getNom(this.form.idCliente),
+                        docReferencia: this.form.docReferencia,
+                        totalCajas: this.totalCajas,
+                        totalPeso: this.totalPeso,
+                        productos: JSON.parse(JSON.stringify(this.form.items))
+                    };
+                } else {
+                    if (this.carritoSalida.length === 0) return alert("Carro vacío");
+                    const invalid = this.carritoSalida.find(i => i.salidaKg <= 0 || i.salidaKg > i.maxPeso);
+                    if (invalid) return alert("Revise los pesos de salida");
+
+                    payload = {
+                        tipo: 'SALIDA',
+                        idCliente: this.formSalida.idCliente,
+                        nombreCliente: getNom(this.formSalida.idCliente),
+                        docReferencia: this.formSalida.docReferencia || 'Despacho',
+                        totalCajas: this.carritoSalida.reduce((a, b) => a + b.salidaCajas, 0),
+                        totalPeso: this.carritoSalida.reduce((a, b) => a + b.salidaKg, 0),
+                        productos: this.carritoSalida.map(i => ({
+                            idProducto: i.idProducto,
+                            lote: i.lote,
+                            cantidadCajas: i.salidaCajas * -1,
+                            pesoKg: i.salidaKg * -1
+                        }))
+                    };
+                }
+
+                this.loading = true;
+                this.mensajeCarga = "Guardando...";
+                google.script.run.withSuccessHandler(res => {
+                    this.loading = false;
+                    if (res.success) {
+                        alert("Éxito! ID: " + res.id);
+                        if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
+                        if (tipo === 'SALIDA') { this.cargarInventario(); }
+                        else { this.form.items = []; this.agregarFila(); }
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                }).apiGuardarMovimiento(payload);
+            }
+        },
+        mounted() { this.iniciarApp(); }
+    }).mount('#app');
+</script>
