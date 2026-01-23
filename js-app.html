@@ -53,6 +53,7 @@
 
                 // Formulario Salida (Picking)
                 formSalida: { idCliente: '', docReferencia: '' },
+                inventarioCliente: [], // Inventario disponible del cliente para salidas
                 carritoSalida: [], // Carrito de productos a despachar
 
                 // --- HISTORIAL ---
@@ -78,6 +79,17 @@
             productosFiltrados() {
                 if (!this.clienteFiltroProductos) return this.productos;
                 return this.productos.filter(p => p.idCliente === this.clienteFiltroProductos);
+            },
+
+            // Historial filtrado por búsqueda
+            historialFiltrado() {
+                if (!this.historialFiltro) return this.historialData;
+                const query = this.historialFiltro.toLowerCase();
+                return this.historialData.filter(h =>
+                    h.id.toLowerCase().includes(query) ||
+                    h.nombreCliente.toLowerCase().includes(query) ||
+                    h.ref.toLowerCase().includes(query)
+                );
             }
         },
         methods: {
@@ -106,16 +118,29 @@
             recargarDatos() {
                 this.loading = true;
 
+                // Cargar en paralelo verdadero usando Promise.all simulado
+                let productosLoaded = false;
+                let clientesLoaded = false;
+
+                const checkComplete = () => {
+                    if (productosLoaded && clientesLoaded) {
+                        this.loading = false;
+                    }
+                };
+
                 // 1. Cargar Productos filtrados por cliente titular (si existe)
                 const clienteParaFiltro = this.clienteTitular || undefined;
                 google.script.run.withSuccessHandler(res => {
                     this.productos = res;
-                    this.loading = false;
+                    productosLoaded = true;
+                    checkComplete();
                 }).apiGetProductosConStock(clienteParaFiltro);
 
-                // 2. Cargar Clientes con Info de Contratos
+                // 2. Cargar Clientes con Info de Contratos (en paralelo)
                 google.script.run.withSuccessHandler(res => {
                     this.clientes = res;
+                    clientesLoaded = true;
+                    checkComplete();
                 }).apiGetClientes();
             },
 

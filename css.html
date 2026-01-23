@@ -44,14 +44,11 @@
     }
 
     .card-header {
-        background: transparent;
-        border-bottom: 1px solid #f1f5f9;
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
         font-weight: 600;
-        color: #64748b;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.05em;
-        padding: 1rem 1.25rem;
+        color: #111827;
+        /* Texto casi negro */
     }
 
     /* Form Controls - PREMIUM UPGRADE */
@@ -90,13 +87,11 @@
     }
 
     .form-label {
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #475569;
-        /* Más oscuro para mejor contraste */
+        font-weight: 600;
         margin-bottom: 0.5rem;
+        color: #1f2937;
+        font-size: 17px;
+        /* +4px desde 13px base */
     }
 
     /* Buttons - PREMIUM UPGRADE */
@@ -160,10 +155,12 @@
     /* Table */
     .table thead th {
         background-color: #f8fafc;
-        color: #64748b;
+        color: #374151;
+        /* Gris oscuro */
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 0.7rem;
+        font-size: 14px;
+        /* +4px desde 10px */
         letter-spacing: 0.05em;
         border-bottom: 1px solid #e2e8f0;
         padding: 0.75rem 1rem;
@@ -172,7 +169,10 @@
     .table td {
         padding: 0.75rem 1rem;
         vertical-align: middle;
-        font-size: 0.875rem;
+        font-size: 18px;
+        /* +4px desde 14px */
+        color: #1f2937;
+        /* Negro gris */
     }
 
     /* Navigation */
@@ -230,5 +230,34 @@
 
     .hover-effect:active {
         transform: scale(0.98);
+    }
+
+    /* Text Utilities - Escala de Grises Oscura */
+    .text-muted {
+        color: #6b7280 !important;
+    }
+
+    .text-dark {
+        color: #1f2937 !important;
+    }
+
+    .text-secondary {
+        color: #4b5563 !important;
+    }
+
+    small,
+    .small {
+        font-size: 16px !important;
+        /* +4px */
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        color: #111827;
+        font-weight: 700;
     }
 </style>
