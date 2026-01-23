@@ -27,10 +27,8 @@
                                 </td>
                                 <td>
                                     <div v-if="c.contratoInfo">
-                                        <span class="badge bg-info-subtle text-info-emphasis">{{
-                                            c.contratoInfo.posiciones }} Pos.</span>
-                                        <div class="small text-muted mt-1">${{ c.contratoInfo.precio.toLocaleString()
-                                            }}/mes</div>
+                                        <span class="badge bg-info-subtle text-info-emphasis">{{ c.contratoInfo.posiciones }} Pos.</span>
+                                        <div class="small text-muted mt-1">${{ c.contratoInfo.precio.toLocaleString() }}/mes</div>
                                     </div>
                                     <span v-else class="badge bg-secondary-subtle text-secondary">Sin Contrato</span>
                                 </td>
@@ -55,10 +53,8 @@
         <div class="col-md-4">
             <div class="card h-100 border-0 shadow-sm" :class="modoEdicionCliente ? 'bg-primary-subtle' : 'bg-light'">
                 <div class="card-header border-bottom-0 pt-4 px-4 bg-transparent">
-                    <!-- FIX APPLIED: Force Sync Update -->
                     <h5 class="mb-0 fw-bold" :class="modoEdicionCliente ? 'text-primary' : 'text-dark'">
-                        <i class="fas fa-user-circle me-2"></i>{{ modoEdicionCliente ? 'Editar Cliente' : 'Nuevo
-                        Cliente' }}
+                        <i class="fas fa-user-circle me-2"></i>{{ modoEdicionCliente ? 'Editar Cliente' : 'Nuevo Cliente' }}
                     </h5>
                 </div>
                 <div class="card-body px-4 pb-4">

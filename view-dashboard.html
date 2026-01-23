@@ -21,7 +21,7 @@
                     <div class="text-center">
                         <!-- Simple CSS Donut Chart logic could go here or just percentage -->
                         <div class="position-relative d-inline-flex align-items-center justify-content-center"
-                            :style="`width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#0ea5e9 ${dashboardData.ocupacion.porcentaje}%, #f1f5f9 0);`">
+                            :style="'width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#0ea5e9 ' + dashboardData.ocupacion.porcentaje + '%, #f1f5f9 0);'">
                             <div class="bg-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
                                 style="width: 60px; height: 60px;">
                                 {{ dashboardData.ocupacion.porcentaje.toFixed(0) }}%
