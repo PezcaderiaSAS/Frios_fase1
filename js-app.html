@@ -20,6 +20,11 @@
                 // --- PRODUCTOS (ALTA MASIVA) ---
                 mostrarAltaMasiva: false,
                 nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
+                clienteProductoNuevo: '', // Cliente para alta de productos
+                clienteFiltroProductos: '', // Filtro de tabla de productos
+
+                // --- CONFIGURACIÓN ---
+                clienteTitular: localStorage.getItem('clienteTitular') || '', // Cliente titular del sistema
 
                 // --- CLIENTES (CRUD) ---
                 modoEdicionCliente: false,
@@ -67,7 +72,13 @@
             totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); },
 
             // Totales Calculados (Salida)
-            totalPesoSalida() { return this.carritoSalida.reduce((s, i) => s + (i.salidaKg || 0), 0).toFixed(2); }
+            totalPesoSalida() { return this.carritoSalida.reduce((s, i) => s + (i.salidaKg || 0), 0).toFixed(2); },
+
+            // Productos filtrados por cliente seleccionado
+            productosFiltrados() {
+                if (!this.clienteFiltroProductos) return this.productos;
+                return this.productos.filter(p => p.idCliente === this.clienteFiltroProductos);
+            }
         },
         methods: {
             // ==========================================
@@ -76,20 +87,33 @@
             async iniciarApp() {
                 this.recargarDatos();
                 this.agregarFila(); // Inicializar una fila vacía en Entrada
+
+                // Si hay cliente titular, pre-seleccionar en formularios
+                if (this.clienteTitular) {
+                    this.form.idCliente = this.clienteTitular;
+                    this.formSalida.idCliente = this.clienteTitular;
+                    this.dashboardCliente = this.clienteTitular;
+
+                    // Cargar dashboard automáticamente después de 1 segundo
+                    setTimeout(() => {
+                        this.cargarDashboard();
+                    }, 1000);
+                }
             },
 
             recargarDatos() {
                 this.loading = true;
 
-                // 1. Cargar Productos con Stock Calculado
+                // 1. Cargar Productos filtrados por cliente titular (si existe)
+                const clienteParaFiltro = this.clienteTitular || undefined;
                 google.script.run.withSuccessHandler(res => {
                     this.productos = res;
-                }).apiGetProductosConStock();
+                    this.loading = false;
+                }).apiGetProductosConStock(clienteParaFiltro);
 
                 // 2. Cargar Clientes con Info de Contratos
                 google.script.run.withSuccessHandler(res => {
                     this.clientes = res;
-                    this.loading = false;
                 }).apiGetClientes();
             },
 
@@ -146,6 +170,7 @@
             // Guardar (Discrimina si es Nuevo o Actualización)
             procesarCliente() {
                 if (!this.formCliente.nombre) return alert("El nombre es obligatorio");
+                if (!this.formCliente.telefono) return alert("El teléfono es obligatorio");
 
                 this.loading = true;
                 this.mensajeCarga = "Guardando información del cliente...";
@@ -176,6 +201,11 @@
                 const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
                 if (validos.length === 0) return alert("Ingrese al menos un producto.");
 
+                // Validación: Cliente es requerido
+                if (!this.clienteProductoNuevo) {
+                    return alert("Debe seleccionar un cliente propietario para los productos.");
+                }
+
                 this.loading = true;
                 this.mensajeCarga = `Registrando ${validos.length} productos...`;
 
@@ -183,9 +213,15 @@
                     this.loading = false;
                     alert(res.message);
                     this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
+                    this.clienteProductoNuevo = ''; // Limpiar selector
                     this.mostrarAltaMasiva = false;
                     this.recargarDatos();
-                }).apiGuardarProductosBatch(validos);
+                }).apiGuardarProductosBatch(validos, this.clienteProductoNuevo);
+            },
+
+            // Método para filtrar productos por cliente
+            filtrarProductosPorCliente() {
+                // El computed property se encargará del filtrado
             },
 
             // ==========================================
@@ -420,6 +456,23 @@
                         alert("Error: " + res.error);
                     }
                 }).apiCalcularFacturacion(this.formBilling.idCliente, this.formBilling.inicio, this.formBilling.fin);
+            },
+
+            // ==========================================
+            // 11. MÓDULO CONFIGURACIÓN
+            // ==========================================
+            guardarConfiguracion() {
+                if (!this.clienteTitular) {
+                    return alert("Debe seleccionar un cliente titular.");
+                }
+
+                // Guardar en localStorage
+                localStorage.setItem('clienteTitular', this.clienteTitular);
+
+                alert("✅ Configuración guardada exitosamente.\n\nEl cliente titular ha sido establecido.");
+
+                // Volver al dashboard
+                this.vista = 'dashboard';
             }
         },
         mounted() { this.iniciarApp(); }

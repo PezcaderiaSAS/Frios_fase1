@@ -11,10 +11,14 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <label class="form-label">Cliente</label>
-                    <select v-model="form.idCliente" class="form-select bg-light fw-bold text-dark">
+                    <select v-model="form.idCliente" class="form-select bg-light fw-bold text-dark"
+                        :disabled="!!clienteTitular">
                         <option value="" disabled>Seleccione...</option>
                         <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
                     </select>
+                    <small v-if="clienteTitular" class="text-muted">
+                        <i class="fas fa-lock me-1"></i>Cliente titular configurado
+                    </small>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Documento Ref.</label>

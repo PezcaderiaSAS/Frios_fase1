@@ -1,18 +1,41 @@
 <div class="animate-enter">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold mb-0">Inventario Global de Productos</h4>
+        <div>
+            <h4 class="fw-bold mb-1">Inventario Global de Productos</h4>
+            <div class="d-flex align-items-center gap-3">
+                <label class="form-label mb-0 small">Filtrar por Cliente:</label>
+                <select v-model="clienteFiltroProductos" @change="filtrarProductosPorCliente"
+                    class="form-select form-select-sm" style="width: 250px;">
+                    <option value="">Todos los Clientes</option>
+                    <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                </select>
+            </div>
+        </div>
         <button v-if="!mostrarAltaMasiva" @click="mostrarAltaMasiva = true" class="btn btn-primary">
             <i class="fas fa-plus me-2"></i>Registrar Nuevos
         </button>
     </div>
 
     <!-- Alta Masiva Panel -->
-    <div v-if="mostrarAltaMasiva" class="card mb-4 border-info border-2 bg-azure-50">
-        <div class="card-header bg-white d-flex justify-content-between">
-            <h5 class="mb-0 text-info fw-bold">Alta Masiva de Productos</h5>
+    <div v-if="mostrarAltaMasiva" class="card mb-4 border-primary border-2 bg-azure-50">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-primary fw-bold">Alta Masiva de Productos</h5>
             <button @click="mostrarAltaMasiva = false" class="btn-close"></button>
         </div>
         <div class="card-body">
+            <!-- Selector de Cliente REQUERIDO -->
+            <div class="alert alert-info d-flex align-items-center mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                Los productos deben estar asignados a un cliente específico.
+            </div>
+            <div class="mb-4">
+                <label class="form-label">Cliente Propietario <span class="text-danger">*</span></label>
+                <select v-model="clienteProductoNuevo" class="form-select" required>
+                    <option value="" disabled>Seleccione el cliente...</option>
+                    <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                </select>
+            </div>
+
             <div class="table-responsive bg-white rounded border mb-3">
                 <table class="table table-sm mb-0">
                     <thead class="table-light">
@@ -55,7 +78,8 @@
                 <button @click="agregarFilaProducto" class="btn btn-sm btn-outline-secondary">
                     <i class="fas fa-plus me-1"></i> Agregar Fila
                 </button>
-                <button @click="guardarProductosMasivo" class="btn btn-info text-white fw-bold">
+                <button @click="guardarProductosMasivo" class="btn btn-primary fw-bold"
+                    :disabled="!clienteProductoNuevo">
                     Guardar Todos
                 </button>
             </div>
@@ -70,15 +94,21 @@
                     <tr>
                         <th class="ps-4">Código</th>
                         <th>Producto</th>
+                        <th>Cliente</th>
                         <th>Empaque</th>
                         <th class="text-end">Stock Cajas</th>
                         <th class="text-end pe-4">Stock Peso (Kg)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="p in productos" :key="p.id">
+                    <tr v-for="p in productosFiltrados" :key="p.id">
                         <td class="ps-4 font-monospace small text-muted">{{ p.id }}</td>
                         <td class="fw-bold text-dark">{{ p.nombre }}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border">
+                                {{ clientes.find(c => c.id === p.idCliente)?.nombre || p.idCliente }}
+                            </span>
+                        </td>
                         <td>
                             <span class="badge bg-light text-secondary border fw-normal">{{ p.empaque }}</span>
                             <span class="small text-muted ms-1">{{ p.pesoNominal }}kg</span>

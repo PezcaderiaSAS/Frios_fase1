@@ -3,7 +3,7 @@
 // ======================================================
 
 function doGet() {
-  return HtmlService.createTemplateFromFile('index')
+  return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('WMS ColdChain Pro')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -146,8 +146,8 @@ function apiGetInventarioCliente(idCliente) {
 // 3. API: PRODUCTOS Y STOCK GLOBAL
 // ======================================================
 
-function apiGetProductosConStock() {
-  const productosBase = apiGetProductos(); 
+function apiGetProductosConStock(idCliente) {
+  const productosBase = apiGetProductos(idCliente); 
   
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
@@ -303,11 +303,25 @@ function apiActualizarMovimiento(payload) {
 // 5. HELPERS Y FUNCIONES DE SOPORTE (MAESTROS)
 // ======================================================
 
-function apiGetProductos() {
+function apiGetProductos(idCliente) {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const data = ss.getSheetByName('DIM_PRODUCTOS').getDataRange().getValues();
   data.shift();
-  return data.map(row => ({ id: row[0], nombre: row[1], pesoNominal: row[2], empaque: row[3] }));
+  
+  let productos = data.map(row => ({ 
+    id: row[0], 
+    idCliente: row[1],
+    nombre: row[2], 
+    pesoNominal: row[3], 
+    empaque: row[4] 
+  }));
+  
+  // Filtrar por cliente si se proporciona
+  if (idCliente) {
+    productos = productos.filter(p => p.idCliente === idCliente);
+  }
+  
+  return productos;
 }
 
 /**
@@ -354,7 +368,7 @@ function apiGuardarMovimiento(payload) {
 
 function apiGuardarCliente(form) { return registrarCliente(form); }
 function apiGuardarProducto(form) { return registrarProducto(form); }
-function apiGuardarProductosBatch(lista) { return registrarProductosMasivo(lista); }
+function apiGuardarProductosBatch(lista, idCliente) { return registrarProductosMasivo(lista, idCliente); }
 
 /**
  * Guarda Cliente + Contrato Inicial

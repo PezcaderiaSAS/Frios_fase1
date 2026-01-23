@@ -4,7 +4,7 @@
 <head>
     <style>
         @page {
-            size: A5 landscape;
+            size: A5 portrait;
             margin: 0;
         }
 
@@ -12,33 +12,33 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             color: #333;
             margin: 0;
-            padding: 40px;
-            font-size: 11px;
-            line-height: 1.5;
+            padding: 15px 20px;
+            font-size: 10px;
+            line-height: 1.3;
         }
 
         .header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 40px;
+            margin-bottom: 12px;
             border-bottom: 2px solid #000;
-            padding-bottom: 20px;
+            padding-bottom: 8px;
         }
 
         .brand h1 {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 800;
             margin: 0;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             text-transform: uppercase;
         }
 
         .brand p {
-            margin: 4px 0 0;
+            margin: 2px 0 0;
             font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             color: #666;
         }
 
@@ -47,7 +47,7 @@
         }
 
         .meta-row {
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .meta-label {
@@ -55,22 +55,22 @@
             text-transform: uppercase;
             font-size: 8px;
             color: #888;
-            margin-right: 8px;
+            margin-right: 4px;
         }
 
         .meta-value {
             font-weight: 700;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .type-badge {
             background: #000;
             color: #fff;
-            padding: 4px 8px;
+            padding: 2px 6px;
             text-transform: uppercase;
             font-weight: 700;
-            font-size: 10px;
-            letter-spacing: 1px;
+            font-size: 9px;
+            letter-spacing: 0.5px;
             display: inline-block;
         }
 
@@ -86,27 +86,27 @@
         /* Amber */
 
         .client-section {
-            margin-bottom: 30px;
+            margin-bottom: 10px;
         }
 
         .client-name {
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .ref-doc {
             font-family: 'Courier New', monospace;
             background: #f3f4f6;
-            padding: 4px 8px;
+            padding: 2px 4px;
             display: inline-block;
-            font-size: 10px;
+            font-size: 9px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
         }
 
         th {
@@ -115,14 +115,15 @@
             text-transform: uppercase;
             color: #888;
             border-bottom: 1px solid #ddd;
-            padding: 8px 4px;
-            letter-spacing: 1px;
+            padding: 4px 2px;
+            letter-spacing: 0.5px;
         }
 
         td {
-            padding: 10px 4px;
+            padding: 4px 2px;
             border-bottom: 1px solid #f3f4f6;
             vertical-align: top;
+            font-size: 9px;
         }
 
         .text-right {
@@ -144,10 +145,10 @@
         .summary-grid {
             display: flex;
             justify-content: flex-end;
-            gap: 40px;
-            margin-top: 20px;
+            gap: 20px;
+            margin-top: 8px;
             border-top: 2px solid #000;
-            padding-top: 20px;
+            padding-top: 8px;
         }
 
         .summary-col {
@@ -159,21 +160,21 @@
             font-size: 8px;
             text-transform: uppercase;
             color: #888;
-            margin-bottom: 4px;
-            letter-spacing: 1px;
+            margin-bottom: 2px;
+            letter-spacing: 0.5px;
         }
 
         .summary-value {
             display: block;
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 700;
         }
 
         .stock-info {
-            margin-top: 40px;
-            padding: 15px;
+            margin-top: 10px;
+            padding: 6px 8px;
             background: #f8fafc;
-            border-left: 3px solid #0f172a;
+            border-left: 2px solid #0f172a;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -182,20 +183,20 @@
         .stock-label {
             font-weight: 700;
             text-transform: uppercase;
-            font-size: 9px;
+            font-size: 8px;
             color: #475569;
         }
 
         .stock-val {
             font-weight: 700;
-            font-size: 12px;
+            font-size: 10px;
             color: #0f172a;
         }
 
         .footer {
-            margin-top: 60px;
+            margin-top: 15px;
             border-top: 1px dashed #ddd;
-            padding-top: 20px;
+            padding-top: 8px;
             display: flex;
             justify-content: space-between;
             font-size: 8px;
@@ -204,17 +205,18 @@
 
         .signatures {
             display: flex;
-            gap: 100px;
+            gap: 40px;
         }
 
         .sign-box {
             border-top: 1px solid #000;
-            width: 120px;
-            padding-top: 8px;
+            width: 60px;
+            padding-top: 4px;
             text-align: center;
             text-transform: uppercase;
             font-weight: 700;
             color: #000;
+            font-size: 8px;
         }
     </style>
 </head>
@@ -262,11 +264,12 @@
     <table>
         <thead>
             <tr>
-                <th width="40%">Producto</th>
-                <th width="20%">Lote</th>
-                <th width="15%">Vencimiento</th>
+                <th width="30%">Producto</th>
+                <th width="15%">Lote</th>
+                <th width="12%">Venc.</th>
                 <th width="10%" class="text-center">Cajas</th>
-                <th width="15%" class="text-right">Peso (Kg)</th>
+                <th width="12%" class="text-right">Peso (Kg)</th>
+                <th width="13%" class="text-right">Stock Rest.</th>
             </tr>
         </thead>
         <tbody>
@@ -274,21 +277,30 @@
             <tr>
                 <td class="fw-bold">
                     <?= data.items[i].nombreProducto || data.items[i].idProducto ?>
-                    <div style="font-size: 9px; color: #666; font-weight: normal; margin-top:2px;">
+                    <div style="font-size: 6px; color: #666; font-weight: normal; margin-top:1px;">
                         <?= data.items[i].empaque || 'Unidad' ?>
                     </div>
                 </td>
                 <td class="font-mono">
                     <?= data.items[i].lote ?>
                 </td>
-                <td>
-                    <?= data.items[i].fechaVencimiento ? new Date(data.items[i].fechaVencimiento).toLocaleDateString() : '-' ?>
+                <td style="font-size: 6px;">
+                    <?= data.items[i].fechaVencimiento ? new Date(data.items[i].fechaVencimiento).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit'}) : '-' ?>
                 </td>
                 <td class="text-center fw-bold">
                     <?= data.items[i].cantidadCajas ?>
                 </td>
                 <td class="text-right fw-bold">
                     <?= data.items[i].pesoKg ?>
+                </td>
+                <td class="text-right" style="font-size: 6px; color: #059669;">
+                    <? if (data.items[i].stockRestante !== undefined) { ?>
+                    <strong>
+                        <?= data.items[i].stockRestante ?>kg
+                    </strong>
+                    <? } else { ?>
+                    -
+                    <? } ?>
                 </td>
             </tr>
             <? } ?>

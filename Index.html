@@ -55,6 +55,11 @@
                         title="Facturación">
                         <i class="fas fa-file-invoice-dollar text-secondary"></i>
                     </button>
+                    <div class="vr my-auto opacity-25"></div>
+                    <button @click="vista='config'" :class="['nav-link', vista==='config' ? 'active' : '']"
+                        title="Configuración">
+                        <i class="fas fa-cog text-secondary"></i>
+                    </button>
                 </div>
 
                 <div class="d-flex align-items-center">
@@ -100,6 +105,9 @@
             </div>
             <div v-show="vista === 'billing'">
                 <?!= include('view-billing'); ?>
+            </div>
+            <div v-show="vista === 'config'">
+                <?!= include('view-config'); ?>
             </div>
 
         </main>

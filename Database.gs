@@ -67,15 +67,13 @@ function registrarMovimiento(data) {
       totalStockPeso: 0   // Placeholder
     };
 
-    // 2b. Calcular Stock Restante Simulando el Movimiento
-    // (Llamamos a la API de Controller que ya lee de la hoja, pero necesitamos inyectar este movimiento 
-    // porque aún no se ha guardado en Sheet). 
-    // ESTRATEGIA: Obtener inventario actual y sumar/restar este movimiento.
+    // 2b. Calcular Stock Restante Total Y por Producto
     try {
         const inventarioActual = apiGetInventarioCliente(data.idCliente);
         let stockCajas = inventarioActual.reduce((acc, i) => acc + i.cajas, 0);
         let stockPeso = inventarioActual.reduce((acc, i) => acc + i.peso, 0);
         
+        // Aplicar este movimiento al stock total
         if (data.tipo === 'ENTRADA') {
             stockCajas += Number(data.totalCajas);
             stockPeso += Number(data.totalPeso);
@@ -86,6 +84,30 @@ function registrarMovimiento(data) {
         
         datosParaPDF.totalStockCajas = stockCajas.toFixed(1);
         datosParaPDF.totalStockPeso = stockPeso.toFixed(2);
+        
+        // NUEVO: Calcular stock restante por producto/lote
+        data.productos.forEach(producto => {
+            const key = producto.idProducto + '|' + producto.lote;
+            const itemEnInventario = inventarioActual.find(inv => 
+                inv.idProducto === producto.idProducto && inv.lote === producto.lote
+            );
+            
+            let stockRestante = 0;
+            if (itemEnInventario) {
+                stockRestante = itemEnInventario.peso;
+            }
+            
+            // Aplicar este movimiento específico
+            if (data.tipo === 'ENTRADA') {
+                stockRestante += Number(producto.pesoKg);
+            } else {
+                stockRestante -= Number(producto.pesoKg);
+            }
+            
+            // Añadir al objeto producto
+            producto.stockRestante = Math.max(0, stockRestante).toFixed(2);
+        });
+        
     } catch (errStock) {
         Logger.log("Error calculando stock para PDF: " + errStock);
     }
@@ -187,20 +209,34 @@ function registrarCliente(data) {
 
 /**
  * Guarda un nuevo producto en DIM_PRODUCTOS
+ * ACTUALIZADO: Requiere ID_CLIENTE para relación 1:N
  */
 function registrarProducto(data) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    // Validación: ID_CLIENTE es requerido
+    if (!data.idCliente) {
+      throw new Error("El campo ID_CLIENTE es obligatorio para crear un producto.");
+    }
+    
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheet = ss.getSheetByName('DIM_PRODUCTOS');
+    
+    // Validar que el cliente existe
+    const sheetClientes = ss.getSheetByName('DIM_CLIENTES');
+    const clientes = sheetClientes.getRange("A2:A" + sheetClientes.getLastRow()).getValues().flat();
+    if (!clientes.includes(data.idCliente)) {
+      throw new Error("El cliente " + data.idCliente + " no existe.");
+    }
     
     // Generar ID: PRO-001
     const id = generateNextId('DIM_PRODUCTOS', 'PRO');
     
-    // Orden columnas: [ID, NOMBRE, PESO_NOMINAL, EMPAQUE]
+    // Orden columnas: [ID, ID_CLIENTE, NOMBRE, PESO_NOMINAL, EMPAQUE]
     sheet.appendRow([
       id,
+      data.idCliente,
       data.nombre,
       data.pesoNominal,
       data.empaque
@@ -216,20 +252,32 @@ function registrarProducto(data) {
 
 /**
  * Registra múltiples productos de una sola vez
- * Optimizado para rendimiento y generación de IDs consecutivos
+ * ACTUALIZADO: Requiere ID_CLIENTE para todos los productos
  */
-function registrarProductosMasivo(listaProductos) {
+function registrarProductosMasivo(listaProductos, idCliente) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000); // Espera hasta 30s si hay otro usuario guardando
+  lock.waitLock(30000);
 
   try {
+    // Validación: ID_CLIENTE es requerido
+    if (!idCliente) {
+      throw new Error("El campo ID_CLIENTE es obligatorio para crear productos.");
+    }
+    
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheet = ss.getSheetByName('DIM_PRODUCTOS');
     
-    // 1. Obtener el último número de ID actual para calcular la secuencia
+    // Validar que el cliente existe
+    const sheetClientes = ss.getSheetByName('DIM_CLIENTES');
+    const clientes = sheetClientes.getRange("A2:A" + sheetClientes.getLastRow()).getValues().flat();
+    if (!clientes.includes(idCliente)) {
+      throw new Error("El cliente " + idCliente + " no existe.");
+    }
+    
+    // 1. Obtener el último número de ID actual
     const dataIds = sheet.getRange("A2:A" + sheet.getLastRow()).getValues().flat();
     let maxId = 0;
-    const regex = /^PRO(\d+)$/; // Patrón PRO + Números
+    const regex = /^PRO(\d+)$/;
 
     dataIds.forEach(id => {
       if (id) {
@@ -243,19 +291,19 @@ function registrarProductosMasivo(listaProductos) {
 
     // 2. Preparar filas para inserción masiva
     const nuevasFilas = listaProductos.map((prod, index) => {
-      // Calculamos ID consecutivo: Máximo actual + 1 + índice en el array
       const siguienteNum = maxId + 1 + index;
       const nuevoId = 'PRO' + siguienteNum.toString().padStart(3, '0');
       
       return [
         nuevoId,            // A: ID
-        prod.nombre,        // B: Nombre
-        prod.pesoNominal,   // C: Peso
-        prod.empaque        // D: Empaque
+        idCliente,          // B: ID_CLIENTE (NUEVO)
+        prod.nombre,        // C: Nombre
+        prod.pesoNominal,   // D: Peso
+        prod.empaque        // E: Empaque
       ];
     });
 
-    // 3. Escribir en bloque (Mucho más rápido que appendRow uno por uno)
+    // 3. Escribir en bloque
     if (nuevasFilas.length > 0) {
       sheet.getRange(
         sheet.getLastRow() + 1, 
@@ -265,7 +313,7 @@ function registrarProductosMasivo(listaProductos) {
       ).setValues(nuevasFilas);
     }
     
-    return { success: true, message: `✅ Se registraron ${nuevasFilas.length} productos nuevos.` };
+    return { success: true, message: `✅ Se registraron ${nuevasFilas.length} productos para el cliente ${idCliente}.` };
 
   } catch (e) {
     return { success: false, error: e.message };
