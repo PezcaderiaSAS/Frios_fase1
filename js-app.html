@@ -97,6 +97,8 @@
                     // Cargar dashboard automáticamente después de 1 segundo
                     setTimeout(() => {
                         this.cargarDashboard();
+                        // También cargar inventario para salidas
+                        this.cargarInventario();
                     }, 1000);
                 }
             },
@@ -147,12 +149,12 @@
             // Preparar formulario para Editar
             cargarClienteParaEditar(cliente) {
                 this.modoEdicionCliente = true;
-                // Mapear datos de la tabla al formulario
                 this.formCliente = {
                     id: cliente.id,
                     nombre: cliente.nombre,
                     nit: cliente.nit,
-                    telefono: '', // (Si tuvieras telefono en la tabla principal, úsalo aquí)
+                    email: cliente.email || '',
+                    telefono: cliente.telefono || '',
                     // Extraer del objeto anidado contratoInfo
                     posiciones: cliente.contratoInfo ? cliente.contratoInfo.posiciones : 10,
                     precioPosicion: cliente.contratoInfo ? cliente.contratoInfo.precio : 450000,
@@ -262,10 +264,18 @@
                 this.inventarioCliente = [];
                 this.carritoSalida = []; // Limpiar carrito al cambiar cliente
 
-                google.script.run.withSuccessHandler(res => {
-                    this.inventarioCliente = res;
-                    this.loading = false;
-                }).apiGetInventarioCliente(this.formSalida.idCliente);
+                google.script.run
+                    .withSuccessHandler(res => {
+                        this.inventarioCliente = res;
+                        this.loading = false;
+                        console.log('Inventario cargado:', res.length, 'items');
+                    })
+                    .withFailureHandler(err => {
+                        this.loading = false;
+                        console.error('Error cargando inventario:', err);
+                        alert('Error al cargar inventario: ' + err);
+                    })
+                    .apiGetInventarioCliente(this.formSalida.idCliente);
             },
 
             agregarAlCarrito(inv) {

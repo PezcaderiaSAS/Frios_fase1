@@ -27,14 +27,17 @@
                                 </td>
                                 <td>
                                     <div v-if="c.contratoInfo">
-                                        <span class="badge bg-info-subtle text-info-emphasis">{{ c.contratoInfo.posiciones }} Pos.</span>
-                                        <div class="small text-muted mt-1">${{ c.contratoInfo.precio.toLocaleString() }}/mes</div>
+                                        <span class="badge bg-info-subtle text-info-emphasis">{{
+                                            c.contratoInfo.posiciones }} Pos.</span>
+                                        <div class="small text-muted mt-1">${{ c.contratoInfo.precio.toLocaleString()
+                                            }}/mes</div>
                                     </div>
                                     <span v-else class="badge bg-secondary-subtle text-secondary">Sin Contrato</span>
                                 </td>
                                 <td class="small text-muted">
-                                    <div v-if="c.email"><i class="fas fa-envelope me-1"></i> {{ c.email }}</div>
                                     <div v-if="c.telefono"><i class="fas fa-phone me-1"></i> {{ c.telefono }}</div>
+                                    <div v-if="c.email"><i class="fas fa-envelope me-1"></i> {{ c.email }}</div>
+                                    <div v-if="!c.telefono && !c.email" class="text-muted fst-italic">Sin contacto</div>
                                 </td>
                                 <td class="text-end pe-4">
                                     <button @click="cargarClienteParaEditar(c)"

@@ -98,8 +98,9 @@ function apiGetInventarioCliente(idCliente) {
   const products = ss.getSheetByName('DIM_PRODUCTOS').getDataRange().getValues();
   
   // Mapa de productos para nombres rápidos
+  // Esquema: [ID_PRODUCTO, ID_CLIENTE, NOMBRE, PESO_NOMINAL, EMPAQUE]
   const mapProductos = {};
-  products.slice(1).forEach(r => mapProductos[r[0]] = { nombre: r[1], empaque: r[3] });
+  products.slice(1).forEach(r => mapProductos[r[0]] = { nombre: r[2], empaque: r[4] });
   
   // Identificar movimientos del cliente
   const movimientosCliente = new Set();
@@ -353,6 +354,8 @@ function apiGetClientes() {
     id: row[0],
     nombre: row[1],
     nit: row[2],
+    email: row[3] || '',
+    telefono: row[4] || '',
     contratoInfo: mapaContratos[row[0]] || null // Adjuntar info contrato si existe
   }));
 }
