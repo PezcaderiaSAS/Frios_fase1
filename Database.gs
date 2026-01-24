@@ -162,6 +162,7 @@ function registrarMovimiento(data) {
 
 /**
  * Guarda un nuevo cliente y crea su contrato base de posiciones
+ * ACTUALIZADO: Soporta TIPO_PAGO (PREPAGO/POSTPAGO) y PRECIO_DIA_POSICION
  */
 function registrarCliente(data) {
   const lock = LockService.getScriptLock();
@@ -170,6 +171,11 @@ function registrarCliente(data) {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheetCli = ss.getSheetByName('DIM_CLIENTES');
     const sheetCon = ss.getSheetByName('DIM_CONTRATOS'); // Asegúrate que esta hoja exista
+    
+    // VALIDACIÓN: Si es POSTPAGO, debe tener precio día posición
+    if (data.tipoPago === 'POSTPAGO' && (!data.precioDiaPosicion || data.precioDiaPosicion <= 0)) {
+      throw new Error('POSTPAGO requiere un PRECIO_DIA_POSICION mayor a 0');
+    }
     
     // 1. Generar ID Cliente: CLI-001
     const idCliente = generateNextId('DIM_CLIENTES', 'CLI');
@@ -185,22 +191,34 @@ function registrarCliente(data) {
     ]);
 
     // 3. Crear Contrato Inicial (Si se definieron posiciones)
-    if (data.posiciones > 0) {
+    if (data.posiciones > 0 || data.tipoPago === 'POSTPAGO') {
       const idContrato = generateNextId('DIM_CONTRATOS', 'CTR');
+      
+      // Valores con defaults seguros
+      const tipoPago = data.tipoPago || 'PREPAGO';
+      const precioDiaPosicion = data.precioDiaPosicion || 0;
+      const precioPosicion = data.precioPosicion || 450000;
+      const precioExceso = data.precioExceso || 85;
+      
       sheetCon.appendRow([
         idContrato,
         idCliente,
-        data.posiciones,   // Posiciones contratadas
-        800,               // Factor estándar (800kg por posición)
-        450000,            // Precio estándar (puedes parametrizarlo luego)
-        85,                // Precio exceso día
-        new Date(),        // Fecha inicio
-        'ACTIVO'
+        data.posiciones || 0,  // Posiciones contratadas (puede ser 0 para POSTPAGO)
+        800,                   // Factor estándar (800kg por posición)
+        precioPosicion,        // Precio mensual (PREPAGO) o base
+        precioExceso,          // Precio exceso día
+        new Date(),            // Fecha inicio
+        'ACTIVO',              // Estado
+        tipoPago,              // NUEVO: TIPO_PAGO (columna I)
+        precioDiaPosicion      // NUEVO: PRECIO_DIA_POSICION (columna J)
       ]);
+      
+      Logger.log(`Contrato creado: ${idContrato} - Tipo: ${tipoPago}`);
     }
     
     return { success: true, message: `Cliente ${data.nombre} creado con éxito.` };
   } catch(e) {
+    Logger.log('Error en registrarCliente: ' + e.toString());
     return { success: false, error: e.message };
   } finally {
     lock.releaseLock();
@@ -324,6 +342,7 @@ function registrarProductosMasivo(listaProductos, idCliente) {
 
 /**
  * Actualiza los datos de un Cliente y su Contrato Activo (VERSIÓN BLINDADA)
+ * ACTUALIZADO: Soporta TIPO_PAGO y PRECIO_DIA_POSICION
  */
 function actualizarClienteDB(data) {
   const lock = LockService.getScriptLock();
@@ -334,6 +353,11 @@ function actualizarClienteDB(data) {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheetCli = ss.getSheetByName('DIM_CLIENTES');
     const sheetCon = ss.getSheetByName('DIM_CONTRATOS');
+    
+    // VALIDACIÓN: Si es POSTPAGO, debe tener precio día posición
+    if (data.tipoPago === 'POSTPAGO' && (!data.precioDiaPosicion || data.precioDiaPosicion <= 0)) {
+      throw new Error('POSTPAGO requiere un PRECIO_DIA_POSICION mayor a 0');
+    }
     
     // ---------------------------------------------------------
     // 1. ACTUALIZAR DATOS MAESTROS (DIM_CLIENTES)
@@ -365,16 +389,27 @@ function actualizarClienteDB(data) {
       String(r[7]).toUpperCase() === 'ACTIVO'
     );
     
+    // Valores con defaults seguros
+    const tipoPago = data.tipoPago || 'PREPAGO';
+    const precioDiaPosicion = data.precioDiaPosicion || 0;
+    
     const valoresContrato = [
-      Number(data.posiciones), // Posiciones
-      800,                     // Factor (Fijo)
+      Number(data.posiciones) || 0, // Posiciones (puede ser 0 para POSTPAGO)
+      800,                           // Factor (Fijo)
       Number(data.precioPosicion),
-      Number(data.precioExceso)
+      Number(data.precioExceso),
+      // NO incluir fecha/estado aquí, son fijos
     ];
 
     if (rowIndexCon !== -1) {
-      // SI EXISTE: Actualizar columnas Posiciones(C) a PrecioExceso(F)
+      // SI EXISTE: Actualizar columnas Posiciones(C) a PrecioExceso(F) + TipoPago(I) + PrecioDiaPosicion(J)
+      // Primero actualizar los 4 campos básicos (columnas C-F)
       sheetCon.getRange(rowIndexCon + 1, 3, 1, 4).setValues([valoresContrato]);
+      
+      // Luego actualizar los campos nuevos (columnas I-J)
+      sheetCon.getRange(rowIndexCon + 1, 9, 1, 2).setValues([[tipoPago, precioDiaPosicion]]);
+      
+      Logger.log(`Contrato actualizado: Tipo=${tipoPago}, PrecioDia=${precioDiaPosicion}`);
     } else {
       // SI NO EXISTE: Crear uno nuevo para no perder los datos
       const nuevoIdContrato = generateNextId('DIM_CONTRATOS', 'CTR');
@@ -385,9 +420,13 @@ function actualizarClienteDB(data) {
         valoresContrato[1], // Factor
         valoresContrato[2], // Precio Pos
         valoresContrato[3], // Precio Exc
-        new Date(),
-        'ACTIVO'
+        new Date(),         // Fecha inicio
+        'ACTIVO',           // Estado
+        tipoPago,           // NUEVO: TIPO_PAGO (columna I)
+        precioDiaPosicion   // NUEVO: PRECIO_DIA_POSICION (columna J)
       ]);
+      
+      Logger.log(`Contrato creado en actualización: ${nuevoIdContrato} - Tipo: ${tipoPago}`);
     }
     
     // ---------------------------------------------------------
@@ -398,7 +437,7 @@ function actualizarClienteDB(data) {
     return { success: true, message: "✅ Cliente y contrato actualizados correctamente." };
 
   } catch(e) {
-    Logger.log("Error en update: " + e);
+    Logger.log("Error en actualizarClienteDB: " + e.toString());
     return { success: false, error: e.toString() };
   } finally {
     lock.releaseLock();

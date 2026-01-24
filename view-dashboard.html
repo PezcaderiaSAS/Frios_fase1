@@ -1,7 +1,6 @@
 <div class="row g-4">
-    <!-- Main KPI -->
     <div class="col-12 col-md-5">
-        <div class="card h-100 border-start border-4 border-info">
+        <div class="card h-100 border-start border-4" :class="dashboardExceso ? 'border-danger' : 'border-info'">
             <div class="card-header d-flex justify-content-between">
                 <span>Estado Actual</span>
                 <select v-model="dashboardCliente" @change="cargarDashboard"
@@ -19,9 +18,10 @@
                         </h2>
                     </div>
                     <div class="text-center">
-                        <!-- Simple CSS Donut Chart logic could go here or just percentage -->
-                        <div class="position-relative d-inline-flex align-items-center justify-content-center"
-                            :style="'width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(#0ea5e9 ' + dashboardData.ocupacion.porcentaje + '%, #f1f5f9 0);'">
+                        <!-- Dynamic color based on exceso -->
+                        <div class="position-relative d-inline-flex align-items-center justify-content-center" :style="'width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(' + 
+                                    (dashboardExceso ? '#dc3545' : '#0ea5e9') + ' ' + 
+                                    Math.min(dashboardData.ocupacion.porcentaje, 100) + '%, #f1f5f9 0);'">
                             <div class="bg-white rounded-circle d-flex align-items-center justify-content-center fw-bold"
                                 style="width: 60px; height: 60px;">
                                 {{ dashboardData.ocupacion.porcentaje.toFixed(0) }}%
@@ -32,13 +32,23 @@
 
                 <div class="row text-center border-top pt-3">
                     <div class="col">
-                        <div class="fw-bold fs-5">{{ dashboardData.ocupacion.posicionesUsadas.toFixed(1) }}</div>
+                        <div class="fw-bold fs-5" :class="dashboardExceso ? 'text-danger' : ''">
+                            {{ dashboardData.ocupacion.posicionesUsadas.toFixed(1) }}
+                        </div>
                         <div class="text-xs text-muted text-uppercase">Posiciones</div>
                     </div>
                     <div class="col border-start">
                         <div class="fw-bold fs-5 text-muted">{{ dashboardData.contrato.posiciones }}</div>
                         <div class="text-xs text-muted text-uppercase">Contratadas</div>
                     </div>
+                </div>
+
+                <!-- Alert de Exceso -->
+                <div v-if="dashboardExceso" class="alert alert-danger mb-0 mt-3 small">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>¡Capacidad Excedida!</strong>
+                    {{ (dashboardData.ocupacion.posicionesUsadas - dashboardData.contrato.posiciones).toFixed(2) }}
+                    posiciones sobre el límite.
                 </div>
             </div>
             <div class="card-body d-flex align-items-center justify-content-center text-muted italic" v-else>

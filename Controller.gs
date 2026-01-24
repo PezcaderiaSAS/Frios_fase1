@@ -337,14 +337,16 @@ function apiGetClientes() {
   
   // 2. Leer Contratos
   const dataCon = ss.getSheetByName('DIM_CONTRATOS').getDataRange().getValues();
-  // Crear mapa: ID_CLIENTE -> { posiciones, precio, exceso }
+  // Crear mapa: ID_CLIENTE -> { posiciones, precio, exceso, tipoPago, precioDiaPosicion }
   const mapaContratos = {};
   dataCon.forEach(r => {
     if(r[7] === 'ACTIVO') { // Solo contratos activos
        mapaContratos[r[1]] = { 
          posiciones: r[2], 
          precio: r[4], 
-         exceso: r[5] 
+         exceso: r[5],
+         tipoPago: r[8] || 'PREPAGO',              // NUEVO: Default PREPAGO si no existe
+         precioDiaPosicion: r[9] || 0               // NUEVO: Precio por posición/día
        };
     }
   });
@@ -450,7 +452,7 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   if (!cliente || !cliente.contratoInfo) throw new Error("Cliente no tiene contrato activo.");
   
   const contrato = cliente.contratoInfo;
-  // contrato = { posiciones, precio: precioMes, exceso: precioDiaExceso }
+  // contrato = { posiciones, precio, exceso, tipoPago, precioDiaPosicion }
   
   // 2. Obtener Historial Completo para reconstruir saldos
   const headers = ss.getSheetByName('MOV_HEADER').getDataRange().getValues();
@@ -472,13 +474,7 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   details.slice(1).forEach(r => {
     const idMov = r[1];
     if (mapMovFecha[idMov]) {
-      // Si es Salida (MOV-OUT), Database guarda "positivo" en MOV_DETAIL? 
-      // Revisando Database.gs -> MOV_DETAIL guarda valor absoluto en save, pero Controller.gs linea 140 trata salidas asumiendo signo en BD o tipo. 
-      // ERROR POTENCIAL: Database.gs guarda abs(). Controller linea 253 guarda abs * -1. 
-      // Asumiendo DB tiene signo correcto (negativo para salidas).
       let peso = Number(r[7]); 
-      // Si en DB están positivos las salidas, necesitamos corregir con el tipo.
-      // Pero Controller `apiActualizarMovimiento` guarda con signo. Confiemos en el signo de BD.
       
       movs.push({
         fecha: mapMovFecha[idMov],
@@ -511,8 +507,7 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const todayMs = d.getTime();
     
-    // Aplicar movimientos de "hoy" (asumiendo que ocurren al final del día para cobro, o saldo promedio)
-    // Política: Cobramos sobre saldo al cierre del día
+    // Aplicar movimientos de "hoy"
     movs.forEach(m => {
       if (m.fecha === todayMs) {
         saldoKg += m.peso;
@@ -523,23 +518,39 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     const posUsadas = saldoKg / 800; // Factor 800 estandar
     const excedente = Math.max(0, posUsadas - contrato.posiciones);
     
-    // Costos
-    const costoBaseDia = (contrato.precio / 30); // Precio Mes / 30
-    const costoExcDia = excedente * contrato.exceso;
+    // NUEVO: Calcular excedente en KILOGRAMOS para cobro
+    const excedenteKg = Math.max(0, saldoKg - (contrato.posiciones * 800));
+    
+    // NUEVA LÓGICA: Costos según TIPO_PAGO
+    let costoBaseDia = 0;
+    let costoExcDia = 0;
+    
+    if (contrato.tipoPago === 'PREPAGO') {
+      // PREPAGO: Pago adelantado mensual + excedentes
+      costoBaseDia = (contrato.precio / 30); // Precio Mes / 30
+      // CORREGIDO: Cobrar por KILOGRAMOS excedentes, no por posiciones
+      costoExcDia = excedenteKg * contrato.exceso;
+    } else {
+      // POSTPAGO: Pago por uso completo (todas las posiciones usadas)
+      costoBaseDia = posUsadas * contrato.precioDiaPosicion;
+      costoExcDia = 0; // No hay concepto de excedente en postpago
+    }
     
     const totalDia = costoBaseDia + costoExcDia;
     
     costoBaseTotal += costoBaseDia;
     costoExcedenteTotal += costoExcDia;
-    if (excedente > 0) diasConExcedente++;
+    if (excedente > 0 && contrato.tipoPago === 'PREPAGO') diasConExcedente++;
 
     detalle.push({
       fecha: new Date(d).toISOString(), // Para enviar a frontend
       stockKg: Math.max(0, saldoKg),
       posUsadas: Math.max(0, posUsadas),
       posContratadas: contrato.posiciones,
-      excedente: excedente,
-      costoDia: totalDia
+      excedente: contrato.tipoPago === 'PREPAGO' ? excedente : 0, // En posiciones (para UI)
+      excedenteKg: contrato.tipoPago === 'PREPAGO' ? excedenteKg : 0, // NUEVO: En kilogramos
+      costoDia: totalDia,
+      tipoCobro: contrato.tipoPago // NUEVO: Identificar tipo en detalle
     });
   }
 
@@ -551,6 +562,101 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     costoExcedente: costoExcedenteTotal,
     diasConExcedente: diasConExcedente,
     totalPagar: costoBaseTotal + costoExcedenteTotal,
-    detalleDiario: detalle
+    detalleDiario: detalle,
+    tipoPago: contrato.tipoPago // NUEVO: Para identificar en frontend
   };
+}
+
+// ======================================================
+// 7. GENERACIÓN DE PDFs DE FACTURACIÓN
+// ======================================================
+
+/**
+ * API: Genera PDF de facturación en formato RESUMEN EJECUTIVO
+ * 
+ * @param {Object} payload - Datos de facturación desde el frontend
+ * @returns {Object} Objeto con success y URL del PDF generado
+ */
+function apiGenerarPDFFacturaResumen(payload) {
+  try {
+    Logger.log("Generando PDF de Factura Resumen...");
+    
+    // Validar datos requeridos
+    if (!payload.cliente || !payload.periodo || !payload.metricas) {
+      throw new Error("Datos incompletos para generar factura");
+    }
+    
+    // Generar ID único para la factura
+    const timestamp = new Date().getTime();
+    const idFactura = `FACT-RES-${payload.cliente.id}-${timestamp}`;
+    
+    // Generar PDF usando el servicio
+    const urlPdf = generarFacturaResumenPDF(idFactura, payload);
+    
+    // Verificar si hubo error
+    if (urlPdf.startsWith('Error')) {
+      return { success: false, error: urlPdf };
+    }
+    
+    Logger.log(`PDF Resumen generado exitosamente: ${urlPdf}`);
+    
+    return {
+      success: true,
+      message: "PDF de Resumen Ejecutivo generado correctamente",
+      pdfUrl: urlPdf,
+      idFactura: idFactura
+    };
+    
+  } catch (e) {
+    Logger.log("Error en apiGenerarPDFFacturaResumen: " + e.toString());
+    return {
+      success: false,
+      error: e.message || e.toString()
+    };
+  }
+}
+
+/**
+ * API: Genera PDF de facturación en formato DETALLADO
+ * 
+ * @param {Object} payload - Datos completos de facturación con tabla día a día
+ * @returns {Object} Objeto con success y URL del PDF generado
+ */
+function apiGenerarPDFFacturaDetallada(payload) {
+  try {
+    Logger.log("Generando PDF de Factura Detallada...");
+    
+    // Validar datos requeridos
+    if (!payload.cliente || !payload.periodo || !payload.metricas || !payload.detalleDiario) {
+      throw new Error("Datos incompletos para generar factura detallada");
+    }
+    
+    // Generar ID único para la factura
+    const timestamp = new Date().getTime();
+    const idFactura = `FACT-DET-${payload.cliente.id}-${timestamp}`;
+    
+    // Generar PDF usando el servicio
+    const urlPdf = generarFacturaDetalladaPDF(idFactura, payload);
+    
+    // Verificar si hubo error
+    if (urlPdf.startsWith('Error')) {
+      return { success: false, error: urlPdf };
+    }
+    
+    Logger.log(`PDF Detallado generado exitosamente: ${urlPdf}`);
+    
+    return {
+      success: true,
+      message: "PDF Detallado generado correctamente",
+      pdfUrl: urlPdf,
+      idFactura: idFactura
+    };
+    
+  } catch (e) {
+    Logger.log("Error en apiGenerarPDFFacturaDetallada: " + e.toString());
+    return {
+      success: false,
+      error: e.message || e.toString()
+    };
+  }
 }

@@ -57,7 +57,8 @@
             <div class="card h-100 border-0 shadow-sm" :class="modoEdicionCliente ? 'bg-primary-subtle' : 'bg-light'">
                 <div class="card-header border-bottom-0 pt-4 px-4 bg-transparent">
                     <h5 class="mb-0 fw-bold" :class="modoEdicionCliente ? 'text-primary' : 'text-dark'">
-                        <i class="fas fa-user-circle me-2"></i>{{ modoEdicionCliente ? 'Editar Cliente' : 'Nuevo Cliente' }}
+                        <i class="fas fa-user-circle me-2"></i>{{ modoEdicionCliente ? 'Editar Cliente' : 'Nuevo
+                        Cliente' }}
                     </h5>
                 </div>
                 <div class="card-body px-4 pb-4">
@@ -84,6 +85,19 @@
                         <label class="form-label text-muted">Posiciones Contratadas</label>
                         <input type="number" v-model.number="formCliente.posiciones" class="form-control">
                     </div>
+
+                    <!-- NUEVO: Tipo de Pago -->
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Tipo de Pago <span class="text-danger">*</span></label>
+                        <select v-model="formCliente.tipoPago" class="form-select">
+                            <option value="PREPAGO">Prepago - Contrato Mensual</option>
+                            <option value="POSTPAGO">Postpago - Pago al Retiro</option>
+                        </select>
+                        <div class="form-text small">
+                            Prepago: pago adelantado. Postpago: pago al retirar producto.
+                        </div>
+                    </div>
+
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label text-muted">Tarifa Mes</label>
@@ -92,6 +106,32 @@
                         <div class="col-6">
                             <label class="form-label text-muted">Tarifa Exceso (Día)</label>
                             <input type="number" v-model.number="formCliente.precioExceso" class="form-control">
+                        </div>
+                    </div>
+
+                    <!-- NUEVO: Campo condicional para POSTPAGO -->
+                    <div v-if="formCliente.tipoPago === 'POSTPAGO'" class="mt-3">
+                        <label class="form-label text-muted">Precio por Posición/Día <span
+                                class="text-danger">*</span></label>
+                        <input type="number" v-model.number="formCliente.precioDiaPosicion" class="form-control"
+                            placeholder="Ej: 1500">
+                        <div class="form-text small">
+                            Valor que se cobra por cada posición utilizada por día.
+                        </div>
+                    </div>
+
+                    <!-- NUEVO: Alerts informativos -->
+                    <div class="mt-3">
+                        <div v-if="formCliente.tipoPago === 'PREPAGO'" class="alert alert-info small mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Prepago:</strong> El cliente paga el costo de las posiciones contratadas al inicio
+                            del mes.
+                            Solo se cobran excedentes si usa más de lo contratado.
+                        </div>
+                        <div v-else-if="formCliente.tipoPago === 'POSTPAGO'" class="alert alert-warning small mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Postpago:</strong> El cliente paga solo cuando retira el producto.
+                            Se cobra cada posición utilizada multiplicada por los días de almacenamiento.
                         </div>
                     </div>
 

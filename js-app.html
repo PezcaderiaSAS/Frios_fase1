@@ -35,7 +35,9 @@
                     telefono: '',
                     posiciones: 10,       // Default
                     precioPosicion: 450000, // Default
-                    precioExceso: 85        // Default
+                    precioExceso: 85,        // Default
+                    tipoPago: 'PREPAGO',     // NUEVO: Default PREPAGO
+                    precioDiaPosicion: 0     // NUEVO: Precio por posición/día
                 },
 
                 // --- MOVIMIENTOS (ENTRADA/SALIDA) ---
@@ -90,6 +92,14 @@
                     h.nombreCliente.toLowerCase().includes(query) ||
                     h.ref.toLowerCase().includes(query)
                 );
+            },
+
+            // NUEVO: Detección de exceso de capacidad en Dashboard
+            dashboardExceso() {
+                if (!this.dashboardData || !this.dashboardData.ocupacion || !this.dashboardData.contrato) {
+                    return false;
+                }
+                return this.dashboardData.ocupacion.posicionesUsadas > this.dashboardData.contrato.posiciones;
             }
         },
         methods: {
@@ -313,6 +323,15 @@
                 const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
                 const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
 
+                // DEBUG: Verificar valores
+                console.log('DEBUG agregarAlCarrito:', {
+                    producto: inv.nombreProducto,
+                    idProducto: inv.idProducto,
+                    prodCatalogo: prodCatalogo,
+                    pesoNominal: pesoBase,
+                    todosLosProductos: this.productos  // NUEVO: Ver array completo
+                });
+
                 this.carritoSalida.push({
                     ...inv,
                     salidaCajas: 0,
@@ -325,6 +344,13 @@
 
             // Cálculo Automático Peso Salida (Editable)
             calcularPesoSalida(item) {
+                console.log('DEBUG calcularPesoSalida:', {
+                    producto: item.nombreProducto,
+                    salidaCajas: item.salidaCajas,
+                    _pesoNominal: item._pesoNominal,
+                    calculado: item.salidaCajas * item._pesoNominal
+                });
+
                 if (item._pesoNominal && item.salidaCajas > 0) {
                     let sugerido = item.salidaCajas * item._pesoNominal;
                     // Sugerimos el valor, el usuario puede editarlo después si la caja estaba incompleta
@@ -491,6 +517,145 @@
                         alert("Error: " + res.error);
                     }
                 }).apiCalcularFacturacion(this.formBilling.idCliente, this.formBilling.inicio, this.formBilling.fin);
+            },
+
+            // ==========================================
+            // 10.1 GENERACIÓN DE PDFs DE FACTURACIÓN
+            // ==========================================
+
+            /**
+             * Genera PDF de facturación en formato RESUMEN EJECUTIVO
+             */
+            generarPDFResumen() {
+                if (!this.billingResult) {
+                    return alert("Primero debe calcular la facturación.");
+                }
+
+                this.loading = true;
+                this.mensajeCarga = "Generando PDF de resumen ejecutivo...";
+
+                // Buscar información completa del cliente
+                const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
+
+                if (!cliente) {
+                    this.loading = false;
+                    return alert("Error: No se encontró la información del cliente.");
+                }
+
+                // Calcular posición promedio utilizada
+                const posicionPromedio = this.billingResult.detalleDiario && this.billingResult.detalleDiario.length > 0
+                    ? (this.billingResult.detalleDiario.reduce((sum, d) => sum + d.posUsadas, 0) / this.billingResult.dias).toFixed(2)
+                    : 0;
+
+                // Preparar payload completo para el PDF
+                const payload = {
+                    tipo: 'RESUMEN',
+                    cliente: {
+                        id: this.formBilling.idCliente,
+                        nombre: cliente.nombre,
+                        nit: cliente.nit
+                    },
+                    periodo: {
+                        inicio: this.formBilling.inicio,
+                        fin: this.formBilling.fin
+                    },
+                    metricas: {
+                        dias: this.billingResult.dias,
+                        costoBase: this.billingResult.costoBase,
+                        costoExcedente: this.billingResult.costoExcedente,
+                        diasConExcedente: this.billingResult.diasConExcedente,
+                        totalPagar: this.billingResult.totalPagar,
+                        posicionPromedio: posicionPromedio
+                    },
+                    contrato: cliente.contratoInfo
+                    // NO incluye detalleDiario para resumen (solo métricas)
+                };
+
+                google.script.run
+                    .withSuccessHandler(res => {
+                        this.loading = false;
+                        if (res.success) {
+                            alert("✅ PDF Resumen Ejecutivo generado exitosamente!");
+                            // Abrir PDF en nueva pestaña
+                            if (res.pdfUrl) {
+                                window.open(res.pdfUrl, '_blank');
+                            }
+                        } else {
+                            alert("Error generando PDF: " + res.error);
+                        }
+                    })
+                    .withFailureHandler(err => {
+                        this.loading = false;
+                        alert("Error: " + err);
+                    })
+                    .apiGenerarPDFFacturaResumen(payload);
+            },
+
+            /**
+             * Genera PDF de facturación en formato DETALLADO con tabla completa
+             */
+            generarPDFDetallado() {
+                if (!this.billingResult) {
+                    return alert("Primero debe calcular la facturación.");
+                }
+
+                // Validar que el período no exceda 40 días
+                if (this.billingResult.dias > 40) {
+                    return alert(`⚠️ El reporte detallado está limitado a 40 días.\n\nPeríodo actual: ${this.billingResult.dias} días\n\nPor favor, ajuste el rango de fechas o use el Resumen Ejecutivo para períodos más largos.`);
+                }
+
+                this.loading = true;
+                this.mensajeCarga = "Generando PDF detallado (puede tardar según el período)...";
+
+                // Buscar información completa del cliente
+                const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
+
+                if (!cliente) {
+                    this.loading = false;
+                    return alert("Error: No se encontró la información del cliente.");
+                }
+
+                // Preparar payload completo incluyendo detalle día a día
+                const payload = {
+                    tipo: 'DETALLADO',
+                    cliente: {
+                        id: this.formBilling.idCliente,
+                        nombre: cliente.nombre,
+                        nit: cliente.nit
+                    },
+                    periodo: {
+                        inicio: this.formBilling.inicio,
+                        fin: this.formBilling.fin
+                    },
+                    metricas: {
+                        dias: this.billingResult.dias,
+                        costoBase: this.billingResult.costoBase,
+                        costoExcedente: this.billingResult.costoExcedente,
+                        diasConExcedente: this.billingResult.diasConExcedente,
+                        totalPagar: this.billingResult.totalPagar
+                    },
+                    contrato: cliente.contratoInfo,
+                    detalleDiario: this.billingResult.detalleDiario // Tabla completa incluida
+                };
+
+                google.script.run
+                    .withSuccessHandler(res => {
+                        this.loading = false;
+                        if (res.success) {
+                            alert("✅ PDF Detallado generado exitosamente!");
+                            // Abrir PDF en nueva pestaña
+                            if (res.pdfUrl) {
+                                window.open(res.pdfUrl, '_blank');
+                            }
+                        } else {
+                            alert("Error generando PDF: " + res.error);
+                        }
+                    })
+                    .withFailureHandler(err => {
+                        this.loading = false;
+                        alert("Error: " + err);
+                    })
+                    .apiGenerarPDFFacturaDetallada(payload);
             },
 
             // ==========================================

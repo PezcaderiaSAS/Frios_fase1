@@ -61,6 +61,46 @@
             </div>
         </div>
 
+        <!-- NUEVO: Indicador de Tipo de Pago -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert mb-0"
+                    :class="billingResult.tipoPago === 'PREPAGO' ? 'alert-success' : 'alert-warning'">
+                    <i class="fas me-2"
+                        :class="billingResult.tipoPago === 'PREPAGO' ? 'fa-calendar-check' : 'fa-hand-holding-usd'"></i>
+                    <strong>Tipo de Facturación:</strong>
+                    {{ billingResult.tipoPago === 'PREPAGO' ? 'Prepago - Pago Adelantado' : 'Postpago - Pago al Retiro'
+                    }}
+                    <div class="small mt-1">
+                        {{ billingResult.tipoPago === 'PREPAGO'
+                        ? 'Costo base incluye posiciones contratadas. Excedentes facturados aparte.'
+                        : 'Se factura 100% del uso. Pago al momento del retiro del producto.' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de Generación de PDFs -->
+        <div class="row mb-4" v-if="billingResult">
+            <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
+                    <div>
+                        <i class="fas fa-file-pdf me-2"></i>
+                        <strong>PDFs Disponibles:</strong> Puede generar dos tipos de documentos con la información
+                        calculada
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button @click="generarPDFResumen" class="btn btn-success">
+                            <i class="fas fa-file-invoice me-2"></i> Resumen Ejecutivo
+                        </button>
+                        <button @click="generarPDFDetallado" class="btn btn-primary">
+                            <i class="fas fa-file-alt me-2"></i> Detallado Completo
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Detail Table -->
         <div class="card">
             <div class="card-header bg-white">
