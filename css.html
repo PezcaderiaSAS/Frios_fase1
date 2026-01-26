@@ -223,4 +223,50 @@
     .cursor-pointer {
         cursor: pointer;
     }
+
+    /* RESPONSIVE BREAKPOINTS */
+
+    /* Mobile */
+    @media (max-width: 575.98px) {
+        .navbar-brand .fs-5 {
+            font-size: 1.1rem !important;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        .glass-panel {
+            padding: 0.5rem !important;
+        }
+
+        /* Ajuste de tablas en móvil */
+        .table thead th {
+            font-size: 0.7rem;
+            padding: 0.5rem;
+        }
+
+        .table td {
+            padding: 0.5rem;
+        }
+    }
+
+    /* Tablet */
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        .card-body {
+            padding: 1.25rem;
+        }
+    }
+
+    /* Desktop */
+    @media (min-width: 992px) and (max-width: 1199.98px) {
+        /* Optimizaciones para desktop estándar */
+    }
+
+    /* Extra Large */
+    @media (min-width: 1200px) {
+        .container-xl {
+            max-width: 1280px;
+        }
+    }
 </style>

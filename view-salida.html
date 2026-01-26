@@ -26,30 +26,40 @@
                         <table class="table table-sm table-hover mb-0 small">
                             <thead class="table-light sticky-top">
                                 <tr>
-                                    <th class="ps-3">Producto</th>
-                                    <th>Lote</th>
+                                    <th class="ps-3">Producto / Lote</th>
                                     <th class="text-end">Cajas</th>
                                     <th class="text-end">Peso</th>
                                     <th></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="inv in inventarioCliente" :key="inv.lote">
-                                    <td class="ps-3">{{ inv.nombreProducto }}</td>
-                                    <td class="font-monospace text-muted">{{ inv.lote }}</td>
-                                    <td class="text-end">{{ inv.cajas.toFixed(1) }}</td>
-                                    <td class="text-end fw-bold text-success">{{ inv.peso.toFixed(2) }}</td>
-                                    <td class="text-end pe-3">
-                                        <button @click="agregarAlCarrito(inv)"
-                                            class="btn btn-sm btn-outline-primary py-0 px-2 font-bold"
-                                            style="font-size: 0.7rem;" title="Agregar al Despacho">
-                                            <i class="fas fa-plus me-1"></i> AGREGAR
-                                        </button>
-                                    </td>
-                                </tr>
+                                <template v-for="grupo in inventarioAgrupado" :key="grupo.idProducto">
+                                    <!-- Encabezado de Grupo (Producto) -->
+                                    <tr class="table-secondary">
+                                        <td colspan="4" class="fw-bold text-dark ps-3 py-1">
+                                            <i class="fas fa-box me-1 text-muted"></i> {{ grupo.nombreProducto }}
+                                        </td>
+                                    </tr>
+                                    <!-- Items del Grupo (Lotes) -->
+                                    <tr v-for="inv in grupo.items" :key="inv.lote">
+                                        <td class="ps-4 font-monospace small text-muted">
+                                            Lote: {{ inv.lote }}
+                                        </td>
+                                        <td class="text-end">{{ inv.cajas.toFixed(1) }}</td>
+                                        <td class="text-end fw-bold text-success">{{ inv.peso.toFixed(2) }}</td>
+                                        <td class="text-end pe-3">
+                                            <button @click="agregarAlCarrito(inv)"
+                                                class="btn btn-sm btn-outline-primary py-0 px-2 font-bold"
+                                                style="font-size: 0.7rem;" title="Agregar al Despacho">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>
+                    <!-- Cambiamos la condición del empty state para usar inventarioAgrupado -->
                     <div v-else-if="formSalida.idCliente" class="text-center py-5 text-muted">
                         Sin existencias disponibles para este cliente.
                     </div>

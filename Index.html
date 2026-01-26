@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WMS ColdChain Pro</title>
     <?!= include('css'); ?>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js" crossorigin="anonymous"></script>
 </head>
 
 <body class="d-flex flex-column min-vh-100">
@@ -95,51 +95,107 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- HAMBURGER BUTTON (Mobile Only) -->
+                <button class="btn btn-icon btn-sm d-md-none text-primary ms-2"
+                    @click="mobileMenuOpen = !mobileMenuOpen">
+                    <i class="fas" :class="mobileMenuOpen ? 'fa-times' : 'fa-bars'"></i>
+                </button>
             </div>
-        </nav>
+    </div>
 
-        <!-- Main Content -->
-        <main class="container-xl py-3 flex-grow-1">
+    <!-- MOBILE MENU OVERLAY -->
+    <transition name="fade">
+        <div v-if="mobileMenuOpen" class="position-fixed top-0 start-0 w-100 h-100 bg-white z-index-1050 d-md-none"
+            style="z-index: 2000; padding-top: 80px;">
+            <div class="container d-flex flex-column gap-3 p-4">
+                <button @click="{ vista='dashboard'; mobileMenuOpen=false; }"
+                    class="btn btn-lg w-100 justify-content-start gap-3"
+                    :class="vista==='dashboard' ? 'btn-primary' : 'btn-light'">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </button>
 
-            <!-- Loader Global Modern -->
-            <transition name="fade">
-                <div v-if="loading" class="loader-overlay flex-column gap-3">
-                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-                    <div
-                        class="glass-panel px-4 py-2 text-primary fw-bold text-uppercase text-xs tracking-wider shadow-sm">
-                        {{ mensajeCarga || 'Procesando...' }}
-                    </div>
+                <button @click="{ vista='entrada'; mobileMenuOpen=false; }"
+                    class="btn btn-lg w-100 justify-content-start gap-3"
+                    :class="vista==='entrada' ? 'btn-success text-white' : 'btn-light'">
+                    <i class="fas fa-arrow-down"></i> Entrada
+                </button>
+
+                <button @click="{ vista='salida'; mobileMenuOpen=false; }"
+                    class="btn btn-lg w-100 justify-content-start gap-3"
+                    :class="vista==='salida' ? 'btn-warning text-white' : 'btn-light'">
+                    <i class="fas fa-arrow-up"></i> Salida
+                </button>
+
+                <hr class="opacity-10 my-1">
+
+                <div class="d-flex gap-2">
+                    <button @click="{ vista='productos'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
+                        <i class="fas fa-boxes me-2"></i> Inventario
+                    </button>
+                    <button @click="{ vista='clientes'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
+                        <i class="fas fa-users me-2"></i> Clientes
+                    </button>
                 </div>
-            </transition>
 
-            <transition name="fade" mode="out-in">
-                <div key="dashboard" v-show="vista === 'dashboard'">
-                    <?!= include('view-dashboard'); ?>
+                <div class="d-flex gap-2">
+                    <button @click="{ vista='movimientos'; cargarHistorial(); mobileMenuOpen=false; }"
+                        class="btn btn-light flex-grow-1">
+                        <i class="fas fa-history me-2"></i> Historial
+                    </button>
+                    <button @click="{ vista='billing'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
+                        <i class="fas fa-file-invoice-dollar me-2"></i> Facturas
+                    </button>
+                    <button @click="{ vista='config'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
+                        <i class="fas fa-cog me-2"></i> Config
+                    </button>
                 </div>
-            </transition>
-            <div v-show="vista === 'clientes'">
-                <?!= include('view-clients'); ?>
             </div>
-            <div v-show="vista === 'productos'">
-                <?!= include('view-products'); ?>
-            </div>
-            <div v-show="vista === 'entrada'">
-                <?!= include('view-entrada'); ?>
-            </div>
-            <div v-show="vista === 'salida'">
-                <?!= include('view-salida'); ?>
-            </div>
-            <div v-show="vista === 'movimientos'">
-                <?!= include('view-movements'); ?>
-            </div>
-            <div v-show="vista === 'billing'">
-                <?!= include('view-billing'); ?>
-            </div>
-            <div v-show="vista === 'config'">
-                <?!= include('view-config'); ?>
-            </div>
+        </div>
+    </transition>
+    </nav>
 
-        </main>
+    <!-- Main Content -->
+    <main class="container-xl py-3 flex-grow-1">
+
+        <!-- Loader Global Modern -->
+        <transition name="fade">
+            <div v-if="loading" class="loader-overlay flex-column gap-3">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                <div class="glass-panel px-4 py-2 text-primary fw-bold text-uppercase text-xs tracking-wider shadow-sm">
+                    {{ mensajeCarga || 'Procesando...' }}
+                </div>
+            </div>
+        </transition>
+
+        <transition name="fade" mode="out-in">
+            <div key="dashboard" v-show="vista === 'dashboard'">
+                <?!= include('view-dashboard'); ?>
+            </div>
+        </transition>
+        <div v-show="vista === 'clientes'">
+            <?!= include('view-clients'); ?>
+        </div>
+        <div v-show="vista === 'productos'">
+            <?!= include('view-products'); ?>
+        </div>
+        <div v-show="vista === 'entrada'">
+            <?!= include('view-entrada'); ?>
+        </div>
+        <div v-show="vista === 'salida'">
+            <?!= include('view-salida'); ?>
+        </div>
+        <div v-show="vista === 'movimientos'">
+            <?!= include('view-movements'); ?>
+        </div>
+        <div v-show="vista === 'billing'">
+            <?!= include('view-billing'); ?>
+        </div>
+        <div v-show="vista === 'config'">
+            <?!= include('view-config'); ?>
+        </div>
+
+    </main>
     </div>
 
     <?!= include('js-app'); ?>

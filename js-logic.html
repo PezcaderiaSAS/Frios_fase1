@@ -1,4 +1,17 @@
 <script>
+    /**
+     * Wrapper para convertir google.script.run en Promesas
+     * Permite usar async/await y manejo de errores centralizado
+     */
+    function serverCall(funcName, ...args) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+            [funcName](...args);
+        });
+    }
+
     const { createApp } = Vue;
 
     createApp({

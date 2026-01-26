@@ -3,7 +3,7 @@
  */
 function generateNextId(sheetName, prefix) {
   const lock = LockService.getScriptLock();
-  lock.tryLock(10000); 
+  lock.waitLock(30000); 
 
   try {
     // CORRECCIÓN: Usamos CONFIG.SPREADSHEET_ID
@@ -481,4 +481,3 @@ function actualizarClienteDB(data) {
     lock.releaseLock();
   }
 }
-

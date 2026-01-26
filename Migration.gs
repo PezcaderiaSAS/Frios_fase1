@@ -5,6 +5,7 @@
  * Todos los contratos existentes se asumen como PREPAGO (pago adelantado)
  */
 function migrarContratosTipoPago() {
+  throw new Error("MIGRACIÓN BLOQUEADA: Elimine esta línea para ejecutar en Producción.");
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheet = ss.getSheetByName('DIM_CONTRATOS');

@@ -1,680 +1,719 @@
 <script>
-    const { createApp } = Vue;
+    function serverCall(funcName, ...args) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)[funcName](...args);
+        });
+    }
 
-    createApp({
-        data() {
-            return {
-                // --- ESTADO GENERAL ---
-                vista: 'dashboard', // Vista inicial
-                loading: false,
-                mensajeCarga: 'Cargando...',
+    try {
+        if (typeof Vue === 'undefined') {
+            throw new Error("Vue.js no se ha cargado. Verifique su conexión a internet o el CDN.");
+        }
+        const { createApp } = Vue;
 
-                // --- DATOS MAESTROS (Cargados del Backend) ---
-                clientes: [],
-                productos: [],
+        const app = createApp({
+            data() {
+                return {
+                    // --- ESTADO GENERAL ---
+                    vista: 'dashboard', // Vista inicial
+                    loading: false,
+                    mensajeCarga: 'Cargando...',
+                    mobileMenuOpen: false, // Control de menú móvil
 
-                // --- DASHBOARD ---
-                dashboardCliente: '',
-                dashboardData: null, // Se llena con { contrato, ocupacion, historial }
+                    // --- DATOS MAESTROS (Cargados del Backend) ---
+                    clientes: [],
+                    productos: [],
 
-                // --- PRODUCTOS (ALTA MASIVA) ---
-                mostrarAltaMasiva: false,
-                nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
-                clienteProductoNuevo: '', // Cliente para alta de productos
-                clienteFiltroProductos: '', // Filtro de tabla de productos
+                    // --- DASHBOARD ---
+                    dashboardCliente: '',
+                    dashboardData: null, // Se llena con { contrato, ocupacion, historial }
 
-                // --- CONFIGURACIÓN ---
-                clienteTitular: localStorage.getItem('clienteTitular') || '', // Cliente titular del sistema
+                    // --- PRODUCTOS (ALTA MASIVA) ---
+                    mostrarAltaMasiva: false,
+                    nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
+                    clienteProductoNuevo: '', // Cliente para alta de productos
+                    clienteFiltroProductos: '', // Filtro de tabla de productos
 
-                // --- CLIENTES (CRUD) ---
-                modoEdicionCliente: false,
-                formCliente: {
-                    id: '',
-                    nombre: '',
-                    nit: '',
-                    telefono: '',
-                    posiciones: 10,       // Default
-                    precioPosicion: 450000, // Default
-                    precioExceso: 85,        // Default
-                    tipoPago: 'PREPAGO',     // NUEVO: Default PREPAGO
-                    precioDiaPosicion: 0     // NUEVO: Precio por posición/día
-                },
+                    // --- CONFIGURACIÓN ---
+                    clienteTitular: localStorage.getItem('clienteTitular') || '', // Cliente titular del sistema
 
-                // --- MOVIMIENTOS (ENTRADA/SALIDA) ---
-                busquedaId: '', // Para buscar movimiento antiguo
-                modoEdicionMovimiento: false, // true si estamos editando uno existente
+                    // --- CLIENTES (CRUD) ---
+                    modoEdicionCliente: false,
+                    formCliente: {
+                        id: '',
+                        nombre: '',
+                        nit: '',
+                        telefono: '',
+                        posiciones: 10, // Default
+                        precioPosicion: 450000, // Default
+                        precioExceso: 85, // Default
+                        tipoPago: 'PREPAGO', // NUEVO: Default PREPAGO
+                        precioDiaPosicion: 0 // NUEVO: Precio por posición/día
+                    },
 
-                // Formulario Entrada
-                form: {
-                    id: '',
-                    idCliente: '',
-                    docReferencia: '',
-                    fecha: new Date().toISOString().split('T')[0],
-                    items: []
-                },
+                    // --- MOVIMIENTOS (ENTRADA/SALIDA) ---
+                    busquedaId: '', // Para buscar movimiento antiguo
+                    modoEdicionMovimiento: false, // true si estamos editando uno existente
 
-                // Formulario Salida (Picking)
-                formSalida: { idCliente: '', docReferencia: '' },
-                inventarioCliente: [], // Inventario disponible del cliente para salidas
-                carritoSalida: [], // Carrito de productos a despachar
+                    // Formulario Entrada
+                    form: {
+                        id: '',
+                        idCliente: '',
+                        docReferencia: '',
+                        fecha: new Date().toISOString().split('T')[0],
+                        items: []
+                    },
 
-                // --- HISTORIAL ---
-                historialData: [],
-                historialFiltro: '',
+                    // Formulario Salida (Picking)
+                    formSalida: { idCliente: '', docReferencia: '' },
+                    inventarioCliente: [], // Inventario disponible del cliente para salidas
+                    carritoSalida: [], // Carrito de productos a despachar
 
-                // --- FACTURACIÓN ---
-                formBilling: { idCliente: '', inicio: '', fin: '' },
-                billingResult: null
-            }
-        },
-        computed: {
-            hoy() { return new Date().toLocaleDateString(); },
+                    // --- HISTORIAL ---
+                    historialData: [],
+                    historialFiltro: '',
 
-            // Totales Calculados (Entrada)
-            totalCajas() { return this.form.items.reduce((s, i) => s + (i.cantidadCajas || 0), 0).toFixed(1); },
-            totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); },
-
-            // Totales Calculados (Salida)
-            totalPesoSalida() { return this.carritoSalida.reduce((s, i) => s + (i.salidaKg || 0), 0).toFixed(2); },
-
-            // Productos filtrados por cliente seleccionado
-            productosFiltrados() {
-                if (!this.clienteFiltroProductos) return this.productos;
-                return this.productos.filter(p => p.idCliente === this.clienteFiltroProductos);
-            },
-
-            // Historial filtrado por búsqueda
-            historialFiltrado() {
-                if (!this.historialFiltro) return this.historialData;
-                const query = this.historialFiltro.toLowerCase();
-                return this.historialData.filter(h =>
-                    h.id.toLowerCase().includes(query) ||
-                    h.nombreCliente.toLowerCase().includes(query) ||
-                    h.ref.toLowerCase().includes(query)
-                );
-            },
-
-            // NUEVO: Detección de exceso de capacidad en Dashboard
-            dashboardExceso() {
-                if (!this.dashboardData || !this.dashboardData.ocupacion || !this.dashboardData.contrato) {
-                    return false;
-                }
-                return this.dashboardData.ocupacion.posicionesUsadas > this.dashboardData.contrato.posiciones;
-            }
-        },
-        methods: {
-            // ==========================================
-            // 1. INICIALIZACIÓN Y CARGA DE DATOS
-            // ==========================================
-            async iniciarApp() {
-                this.recargarDatos();
-                this.agregarFila(); // Inicializar una fila vacía en Entrada
-
-                // Si hay cliente titular, pre-seleccionar en formularios
-                if (this.clienteTitular) {
-                    this.form.idCliente = this.clienteTitular;
-                    this.formSalida.idCliente = this.clienteTitular;
-                    this.dashboardCliente = this.clienteTitular;
-
-                    // Cargar dashboard automáticamente después de 1 segundo
-                    setTimeout(() => {
-                        this.cargarDashboard();
-                        // También cargar inventario para salidas
-                        this.cargarInventario();
-                    }, 1000);
+                    // --- FACTURACIÓN ---
+                    formBilling: { idCliente: '', inicio: '', fin: '' },
+                    billingResult: null
                 }
             },
+            computed: {
+                hoy() { return new Date().toLocaleDateString(); },
 
-            recargarDatos() {
-                this.loading = true;
+                // Totales Calculados (Entrada)
+                totalCajas() { return this.form.items.reduce((s, i) => s + (i.cantidadCajas || 0), 0).toFixed(1); },
+                totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); },
 
-                // Cargar en paralelo verdadero usando Promise.all simulado
-                let productosLoaded = false;
-                let clientesLoaded = false;
+                // Totales Calculados (Salida)
+                totalPesoSalida() { return this.carritoSalida.reduce((s, i) => s + (i.salidaKg || 0), 0).toFixed(2); },
 
-                const checkComplete = () => {
-                    if (productosLoaded && clientesLoaded) {
-                        this.loading = false;
+                // Productos filtrados por cliente seleccionado
+                productosFiltrados() {
+                    if (!this.clienteFiltroProductos) return this.productos;
+                    return this.productos.filter(p => p.idCliente === this.clienteFiltroProductos);
+                },
+
+                // Historial filtrado por búsqueda
+                historialFiltrado() {
+                    if (!this.historialFiltro) return this.historialData;
+                    const query = this.historialFiltro.toLowerCase();
+                    return this.historialData.filter(h =>
+                        h.id.toLowerCase().includes(query) ||
+                        h.nombreCliente.toLowerCase().includes(query) ||
+                        h.ref.toLowerCase().includes(query)
+                    );
+                },
+
+                // NUEVO: Detección de exceso de capacidad en Dashboard
+                dashboardExceso() {
+                    if (!this.dashboardData || !this.dashboardData.ocupacion || !this.dashboardData.contrato) {
+                        return false;
                     }
-                };
+                    return this.dashboardData.ocupacion.posicionesUsadas > this.dashboardData.contrato.posiciones;
+                },
 
-                // 1. Cargar Productos filtrados por cliente titular (si existe)
-                const clienteParaFiltro = this.clienteTitular || undefined;
-                google.script.run.withSuccessHandler(res => {
-                    this.productos = res;
-                    productosLoaded = true;
-                    checkComplete();
-                }).apiGetProductosConStock(clienteParaFiltro);
+                // NUEVO: Agrupación para vista de Salidas
+                inventarioAgrupado() {
+                    if (!this.inventarioCliente || this.inventarioCliente.length === 0) return [];
 
-                // 2. Cargar Clientes con Info de Contratos (en paralelo)
-                google.script.run.withSuccessHandler(res => {
-                    this.clientes = res;
-                    clientesLoaded = true;
-                    checkComplete();
-                }).apiGetClientes();
-            },
-
-            // ==========================================
-            // 2. LÓGICA DEL DASHBOARD
-            // ==========================================
-            cargarDashboard() {
-                if (!this.dashboardCliente) return;
-
-                this.loading = true;
-                this.mensajeCarga = "Analizando estado de cuenta...";
-                this.dashboardData = null;
-
-                google.script.run
-                    .withSuccessHandler(res => {
-                        this.loading = false;
-                        if (res.success) {
-                            this.dashboardData = res;
-                        } else {
-                            alert("Aviso: " + res.error); // Mostrar error pero no romper
-                            this.dashboardData = res; // Mostrar lo que haya llegado
+                    const grupos = {};
+                    this.inventarioCliente.forEach(item => {
+                        const id = item.idProducto;
+                        if (!grupos[id]) {
+                            grupos[id] = {
+                                idProducto: id,
+                                nombreProducto: item.nombreProducto,
+                                items: []
+                            };
                         }
-                    })
-                    .apiGetDashboardData(this.dashboardCliente);
-            },
+                        grupos[id].items.push(item);
+                    });
 
-            // ==========================================
-            // 3. GESTIÓN DE CLIENTES (CREAR / EDITAR)
-            // ==========================================
-
-            // Preparar formulario para Editar
-            cargarClienteParaEditar(cliente) {
-                this.modoEdicionCliente = true;
-                this.formCliente = {
-                    id: cliente.id,
-                    nombre: cliente.nombre,
-                    nit: cliente.nit,
-                    email: cliente.email || '',
-                    telefono: cliente.telefono || '',
-                    // Extraer del objeto anidado contratoInfo
-                    posiciones: cliente.contratoInfo ? cliente.contratoInfo.posiciones : 10,
-                    precioPosicion: cliente.contratoInfo ? cliente.contratoInfo.precio : 450000,
-                    precioExceso: cliente.contratoInfo ? cliente.contratoInfo.exceso : 85
-                };
-                // Scroll arriba suave
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            },
-
-            cancelarEdicionCliente() {
-                this.modoEdicionCliente = false;
-                this.formCliente = { nombre: '', nit: '', telefono: '', posiciones: 10, precioPosicion: 450000, precioExceso: 85 };
-            },
-
-            // Guardar (Discrimina si es Nuevo o Actualización)
-            procesarCliente() {
-                if (!this.formCliente.nombre) return alert("El nombre es obligatorio");
-                if (!this.formCliente.telefono) return alert("El teléfono es obligatorio");
-
-                this.loading = true;
-                this.mensajeCarga = "Guardando información del cliente...";
-
-                const funcionAPI = this.modoEdicionCliente ? 'apiActualizarCliente' : 'apiGuardarCliente';
-
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    alert(res.message);
-                    this.cancelarEdicionCliente();
-                    this.recargarDatos(); // Refrescar tabla
-                })[funcionAPI](this.formCliente);
-            },
-
-            // ==========================================
-            // 4. GESTIÓN DE PRODUCTOS (ALTA MASIVA)
-            // ==========================================
-            agregarFilaProducto() {
-                this.nuevosProductos.push({ nombre: '', empaque: 'Caja', pesoNominal: 0 });
-            },
-
-            borrarFilaProducto(idx) {
-                if (this.nuevosProductos.length > 1) this.nuevosProductos.splice(idx, 1);
-                else this.nuevosProductos[0] = { nombre: '', empaque: 'Caja', pesoNominal: 0 };
-            },
-
-            guardarProductosMasivo() {
-                const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
-                if (validos.length === 0) return alert("Ingrese al menos un producto.");
-
-                // Validación: Cliente es requerido
-                if (!this.clienteProductoNuevo) {
-                    return alert("Debe seleccionar un cliente propietario para los productos.");
+                    // Convertir a array y ordenar alfabéticamente
+                    return Object.values(grupos).sort((a, b) => a.nombreProducto.localeCompare(b.nombreProducto));
                 }
-
-                this.loading = true;
-                this.mensajeCarga = `Registrando ${validos.length} productos...`;
-
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    alert(res.message);
-                    this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
-                    this.clienteProductoNuevo = ''; // Limpiar selector
-                    this.mostrarAltaMasiva = false;
+            },
+            methods: {
+                // ==========================================
+                // 1. INICIALIZACIÓN Y CARGA DE DATOS
+                // ==========================================
+                async iniciarApp() {
                     this.recargarDatos();
-                }).apiGuardarProductosBatch(validos, this.clienteProductoNuevo);
-            },
+                    this.agregarFila(); // Inicializar una fila vacía en Entrada
 
-            // Método para filtrar productos por cliente
-            filtrarProductosPorCliente() {
-                // El computed property se encargará del filtrado
-            },
+                    // Si hay cliente titular, pre-seleccionar en formularios
+                    if (this.clienteTitular) {
+                        this.form.idCliente = this.clienteTitular;
+                        this.formSalida.idCliente = this.clienteTitular;
+                        this.dashboardCliente = this.clienteTitular;
 
-            // ==========================================
-            // 5. MOVIMIENTOS: ENTRADA
-            // ==========================================
-            agregarFila() {
-                this.form.items.push({ idProducto: '', lote: '', cantidadCajas: 0, pesoKg: 0 });
-            },
+                        // Cargar dashboard automáticamente después de 1 segundo
+                        setTimeout(() => {
+                            this.cargarDashboard();
+                            // También cargar inventario para salidas
+                            this.cargarInventario();
+                        }, 1000);
+                    }
+                },
 
-            borrarFila(idx) { this.form.items.splice(idx, 1); },
+                recargarDatos() {
+                    this.loading = true;
 
-            alCambiarProducto(item) {
-                const p = this.productos.find(x => x.id === item.idProducto);
-                if (p) item._pesoBase = p.pesoNominal;
-                this.calcularPesoAuto(item);
-            },
+                    // Cargar en paralelo verdadero usando Promise.all simulado
+                    let productosLoaded = false;
+                    let clientesLoaded = false;
 
-            // Cálculo Automático Peso Entrada (Sugerido)
-            calcularPesoAuto(item) {
-                if (item._pesoBase && item.cantidadCajas) {
-                    item.pesoKg = parseFloat((item.cantidadCajas * item._pesoBase).toFixed(2));
-                }
-            },
-
-            // Helpers UI
-            getDescProducto(id) {
-                const p = this.productos.find(x => x.id === id);
-                return p ? `${p.empaque} de ${p.pesoNominal}kg` : '';
-            },
-
-            // ==========================================
-            // 6. MOVIMIENTOS: SALIDA (PICKING)
-            // ==========================================
-            cargarInventario() {
-                if (!this.formSalida.idCliente) return;
-                this.loading = true;
-                this.mensajeCarga = "Consultando stock disponible...";
-                this.inventarioCliente = [];
-                this.carritoSalida = []; // Limpiar carrito al cambiar cliente
-
-                google.script.run
-                    .withSuccessHandler(res => {
-                        this.inventarioCliente = res;
-                        this.loading = false;
-                        console.log('Inventario cargado:', res.length, 'items');
-                    })
-                    .withFailureHandler(err => {
-                        this.loading = false;
-                        console.error('Error cargando inventario:', err);
-                        alert('Error al cargar inventario: ' + err);
-                    })
-                    .apiGetInventarioCliente(this.formSalida.idCliente);
-            },
-
-            agregarAlCarrito(inv) {
-                // Evitar duplicados
-                if (this.carritoSalida.find(x => x.lote === inv.lote && x.idProducto === inv.idProducto)) {
-                    return alert("Este lote ya está en la orden de salida.");
-                }
-
-                // Buscar peso nominal para el cálculo
-                const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
-                const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
-
-                // DEBUG: Verificar valores
-                console.log('DEBUG agregarAlCarrito:', {
-                    producto: inv.nombreProducto,
-                    idProducto: inv.idProducto,
-                    prodCatalogo: prodCatalogo,
-                    pesoNominal: pesoBase,
-                    todosLosProductos: this.productos  // NUEVO: Ver array completo
-                });
-
-                this.carritoSalida.push({
-                    ...inv,
-                    salidaCajas: 0,
-                    salidaKg: 0,
-                    maxPeso: inv.peso,
-                    maxCajas: inv.cajas,
-                    _pesoNominal: pesoBase
-                });
-            },
-
-            // Cálculo Automático Peso Salida (Editable)
-            calcularPesoSalida(item) {
-                console.log('DEBUG calcularPesoSalida:', {
-                    producto: item.nombreProducto,
-                    salidaCajas: item.salidaCajas,
-                    _pesoNominal: item._pesoNominal,
-                    calculado: item.salidaCajas * item._pesoNominal
-                });
-
-                if (item._pesoNominal && item.salidaCajas > 0) {
-                    let sugerido = item.salidaCajas * item._pesoNominal;
-                    // Sugerimos el valor, el usuario puede editarlo después si la caja estaba incompleta
-                    item.salidaKg = parseFloat(sugerido.toFixed(2));
-                }
-            },
-
-            // ==========================================
-            // 7. BÚSQUEDA Y EDICIÓN DE MOVIMIENTOS
-            // ==========================================
-            buscarMovimiento() {
-                if (!this.busquedaId) return;
-                this.loading = true;
-                this.mensajeCarga = "Buscando registro...";
-
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    this.modoEdicionMovimiento = true;
-
-                    // Cargar datos en el formulario de Entrada (reusamos la vista)
-                    this.form = {
-                        id: res.header.id,
-                        idCliente: res.header.idCliente,
-                        docReferencia: res.header.docReferencia,
-                        fecha: res.header.fecha,
-                        items: res.items
-                    };
-
-                    this.vista = 'entrada'; // Forzamos ir a la vista de entrada para editar
-
-                }).withFailureHandler(err => {
-                    this.loading = false;
-                    alert("No se encontró el movimiento: " + err);
-                }).apiGetMovimientoDetalle(this.busquedaId);
-            },
-
-            cancelarEdicionMovimiento() {
-                this.modoEdicionMovimiento = false;
-                this.form = { id: '', idCliente: '', docReferencia: '', fecha: new Date().toISOString().split('T')[0], items: [] };
-                this.busquedaId = '';
-                this.agregarFila();
-            },
-
-            // ==========================================
-            // 8. GUARDADO FINAL (TRANSACCIONES)
-            // ==========================================
-            guardarTransaccion(tipo) {
-                let payload = {};
-                const getNom = (id) => this.clientes.find(c => c.id === id)?.nombre || id;
-
-                // A. Preparar Payload ENTRADA
-                if (tipo === 'ENTRADA') {
-                    if (!this.form.idCliente || this.form.items.length === 0) return alert("Complete los datos obligatorios.");
-
-                    payload = {
-                        id: this.modoEdicionMovimiento ? this.form.id : null, // ID si es edición
-                        tipo: 'ENTRADA',
-                        idCliente: this.form.idCliente,
-                        nombreCliente: getNom(this.form.idCliente),
-                        docReferencia: this.form.docReferencia,
-                        fecha: this.form.fecha,
-                        totalCajas: this.totalCajas,
-                        totalPeso: this.totalPeso,
-                        productos: JSON.parse(JSON.stringify(this.form.items))
-                    };
-                }
-                // B. Preparar Payload SALIDA
-                else {
-                    if (this.carritoSalida.length === 0) return alert("El carrito de salida está vacío.");
-
-                    // Validaciones de stock (visuales y lógicas)
-                    const invalid = this.carritoSalida.find(i => i.salidaKg <= 0 || i.salidaKg > i.maxPeso + 0.1); // +0.1 tolerancia flotante
-                    if (invalid) return alert(`Revise el item ${invalid.lote}: El peso de salida no es válido o excede el stock.`);
-
-                    const sumCajas = this.carritoSalida.reduce((a, b) => a + b.salidaCajas, 0);
-                    const sumPeso = this.carritoSalida.reduce((a, b) => a + b.salidaKg, 0);
-
-                    payload = {
-                        tipo: 'SALIDA',
-                        idCliente: this.formSalida.idCliente,
-                        nombreCliente: getNom(this.formSalida.idCliente),
-                        docReferencia: this.formSalida.docReferencia || 'Despacho',
-                        totalCajas: sumCajas,
-                        totalPeso: sumPeso,
-                        productos: this.carritoSalida.map(i => ({
-                            idProducto: i.idProducto,
-                            lote: i.lote,
-                            cantidadCajas: i.salidaCajas * -1, // Negativo
-                            pesoKg: i.salidaKg * -1            // Negativo
-                        }))
-                    };
-                }
-
-                // C. Enviar al Servidor
-                this.loading = true;
-                this.mensajeCarga = this.modoEdicionMovimiento ? "Actualizando registro..." : "Generando movimiento y PDF...";
-
-                // Decidir función: Guardar Nuevo o Actualizar Existente
-                const funcionAPI = this.modoEdicionMovimiento ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
-
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    if (res.success) {
-                        alert(res.message);
-                        // Abrir PDF si existe (solo al crear nuevo usualmente, o regenerar)
-                        if (res.pdfUrl && res.pdfUrl.startsWith('http')) {
-                            window.open(res.pdfUrl, '_blank');
+                    const checkComplete = () => {
+                        if (productosLoaded && clientesLoaded) {
+                            this.loading = false;
                         }
+                    };
 
-                        // Limpieza post-guardado
-                        if (this.modoEdicionMovimiento) {
-                            this.cancelarEdicionMovimiento();
-                            this.vista = 'movimientos'; // Volver al historial al terminar edición
-                            this.cargarHistorial();     // Recargar lista
-                        } else {
-                            if (tipo === 'ENTRADA') {
-                                this.form.items = [];
-                                this.agregarFila();
-                                this.form.docReferencia = '';
+                    // 1. Cargar Productos filtrados por cliente titular (si existe)
+                    const clienteParaFiltro = this.clienteTitular || undefined;
+                    google.script.run.withSuccessHandler(res => {
+                        this.productos = res;
+                        productosLoaded = true;
+                        checkComplete();
+                    }).apiGetProductosConStock(clienteParaFiltro);
+
+                    // 2. Cargar Clientes con Info de Contratos (en paralelo)
+                    google.script.run.withSuccessHandler(res => {
+                        this.clientes = res;
+                        clientesLoaded = true;
+                        checkComplete();
+                    }).apiGetClientes();
+                },
+
+                // ==========================================
+                // 2. LÓGICA DEL DASHBOARD
+                // ==========================================
+                cargarDashboard() {
+                    if (!this.dashboardCliente) return;
+
+                    this.loading = true;
+                    this.mensajeCarga = "Analizando estado de cuenta...";
+                    this.dashboardData = null;
+
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            this.loading = false;
+                            if (res.success) {
+                                this.dashboardData = res;
                             } else {
-                                this.carritoSalida = [];
-                                this.cargarInventario(); // Refrescar stock visual
+                                alert("Aviso: " + res.error); // Mostrar error pero no romper
+                                this.dashboardData = res; // Mostrar lo que haya llegado
                             }
-                        }
-                        this.recargarDatos(); // Actualizar datos globales
-                    } else {
-                        alert("Error: " + res.error);
-                    }
-                })[funcionAPI](payload);
-            },
+                        })
+                        .apiGetDashboardData(this.dashboardCliente);
+                },
 
-            // ==========================================
-            // 9. MÓDULO HISTORIAL
-            // ==========================================
-            cargarHistorial() {
-                this.loading = true;
-                google.script.run.withSuccessHandler(res => {
-                    this.historialData = res;
-                    this.loading = false;
-                }).apiGetHistorialCompleto();
-            },
-            editarMovimientoDesdeHistorial(id) {
-                this.busquedaId = id;
-                this.buscarMovimiento(); // Reutilizamos la función existente
-            },
+                // ==========================================
+                // 3. GESTIÓN DE CLIENTES (CREAR / EDITAR)
+                // ==========================================
 
-            // ==========================================
-            // 10. MÓDULO FACTURACIÓN
-            // ==========================================
-            calcularFacturacion() {
-                if (!this.formBilling.idCliente || !this.formBilling.inicio || !this.formBilling.fin) {
-                    return alert("Seleccione cliente y fechas.");
-                }
-
-                this.loading = true;
-                this.mensajeCarga = "Calculando desglose diario (esto puede tardar)...";
-                this.billingResult = null;
-
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    if (res.success) {
-                        this.billingResult = res;
-                    } else {
-                        alert("Error: " + res.error);
-                    }
-                }).apiCalcularFacturacion(this.formBilling.idCliente, this.formBilling.inicio, this.formBilling.fin);
-            },
-
-            // ==========================================
-            // 10.1 GENERACIÓN DE PDFs DE FACTURACIÓN
-            // ==========================================
-
-            /**
-             * Genera PDF de facturación en formato RESUMEN EJECUTIVO
-             */
-            generarPDFResumen() {
-                if (!this.billingResult) {
-                    return alert("Primero debe calcular la facturación.");
-                }
-
-                this.loading = true;
-                this.mensajeCarga = "Generando PDF de resumen ejecutivo...";
-
-                // Buscar información completa del cliente
-                const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
-
-                if (!cliente) {
-                    this.loading = false;
-                    return alert("Error: No se encontró la información del cliente.");
-                }
-
-                // Calcular posición promedio utilizada
-                const posicionPromedio = this.billingResult.detalleDiario && this.billingResult.detalleDiario.length > 0
-                    ? (this.billingResult.detalleDiario.reduce((sum, d) => sum + d.posUsadas, 0) / this.billingResult.dias).toFixed(2)
-                    : 0;
-
-                // Preparar payload completo para el PDF
-                const payload = {
-                    tipo: 'RESUMEN',
-                    cliente: {
-                        id: this.formBilling.idCliente,
+                // Preparar formulario para Editar
+                cargarClienteParaEditar(cliente) {
+                    this.modoEdicionCliente = true;
+                    this.formCliente = {
+                        id: cliente.id,
                         nombre: cliente.nombre,
-                        nit: cliente.nit
-                    },
-                    periodo: {
-                        inicio: this.formBilling.inicio,
-                        fin: this.formBilling.fin
-                    },
-                    metricas: {
-                        dias: this.billingResult.dias,
-                        costoBase: this.billingResult.costoBase,
-                        costoExcedente: this.billingResult.costoExcedente,
-                        diasConExcedente: this.billingResult.diasConExcedente,
-                        totalPagar: this.billingResult.totalPagar,
-                        posicionPromedio: posicionPromedio
-                    },
-                    contrato: cliente.contratoInfo
-                    // NO incluye detalleDiario para resumen (solo métricas)
-                };
+                        nit: cliente.nit,
+                        email: cliente.email || '',
+                        telefono: cliente.telefono || '',
+                        // Extraer del objeto anidado contratoInfo
+                        posiciones: cliente.contratoInfo ? cliente.contratoInfo.posiciones : 10,
+                        precioPosicion: cliente.contratoInfo ? cliente.contratoInfo.precio : 450000,
+                        precioExceso: cliente.contratoInfo ? cliente.contratoInfo.exceso : 85
+                    };
+                    // Scroll arriba suave
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                },
 
-                google.script.run
-                    .withSuccessHandler(res => {
+                cancelarEdicionCliente() {
+                    this.modoEdicionCliente = false;
+                    this.formCliente = { nombre: '', nit: '', telefono: '', posiciones: 10, precioPosicion: 450000, precioExceso: 85 };
+                },
+
+                // Guardar (Discrimina si es Nuevo o Actualización)
+                procesarCliente() {
+                    if (!this.formCliente.nombre) return alert("El nombre es obligatorio");
+                    if (!this.formCliente.telefono) return alert("El teléfono es obligatorio");
+
+                    this.loading = true;
+                    this.mensajeCarga = "Guardando información del cliente...";
+
+                    const funcionAPI = this.modoEdicionCliente ? 'apiActualizarCliente' : 'apiGuardarCliente';
+
+                    google.script.run.withSuccessHandler(res => {
+                        this.loading = false;
+                        alert(res.message);
+                        this.cancelarEdicionCliente();
+                        this.recargarDatos(); // Refrescar tabla
+                    })[funcionAPI](this.formCliente);
+                },
+
+                // ==========================================
+                // 4. GESTIÓN DE PRODUCTOS (ALTA MASIVA)
+                // ==========================================
+                agregarFilaProducto() {
+                    this.nuevosProductos.push({ nombre: '', empaque: 'Caja', pesoNominal: 0 });
+                },
+
+                borrarFilaProducto(idx) {
+                    if (this.nuevosProductos.length > 1) this.nuevosProductos.splice(idx, 1);
+                    else this.nuevosProductos[0] = { nombre: '', empaque: 'Caja', pesoNominal: 0 };
+                },
+
+                guardarProductosMasivo() {
+                    const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
+                    if (validos.length === 0) return alert("Ingrese al menos un producto.");
+
+                    // Validación: Cliente es requerido
+                    if (!this.clienteProductoNuevo) {
+                        return alert("Debe seleccionar un cliente propietario para los productos.");
+                    }
+
+                    this.loading = true;
+                    this.mensajeCarga = `Registrando ${validos.length} productos...`;
+
+                    google.script.run.withSuccessHandler(res => {
+                        this.loading = false;
+                        alert(res.message);
+                        this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
+                        this.clienteProductoNuevo = ''; // Limpiar selector
+                        this.mostrarAltaMasiva = false;
+                        this.recargarDatos();
+                    }).apiGuardarProductosBatch(validos, this.clienteProductoNuevo);
+                },
+
+                // Método para filtrar productos por cliente
+                filtrarProductosPorCliente() {
+                    // El computed property se encargará del filtrado
+                },
+
+                // ==========================================
+                // 5. MOVIMIENTOS: ENTRADA
+                // ==========================================
+                agregarFila() {
+                    this.form.items.push({ idProducto: '', lote: '', cantidadCajas: 0, pesoKg: 0 });
+                },
+
+                borrarFila(idx) { this.form.items.splice(idx, 1); },
+
+                alCambiarProducto(item) {
+                    const p = this.productos.find(x => x.id === item.idProducto);
+                    if (p) item._pesoBase = p.pesoNominal;
+                    this.calcularPesoAuto(item);
+                },
+
+                // Cálculo Automático Peso Entrada (Sugerido)
+                calcularPesoAuto(item) {
+                    if (item._pesoBase && item.cantidadCajas) {
+                        item.pesoKg = parseFloat((item.cantidadCajas * item._pesoBase).toFixed(2));
+                    }
+                },
+
+                // Helpers UI
+                getDescProducto(id) {
+                    const p = this.productos.find(x => x.id === id);
+                    return p ? `${p.empaque} de ${p.pesoNominal}kg` : '';
+                },
+
+                // ==========================================
+                // 6. MOVIMIENTOS: SALIDA (PICKING)
+                // ==========================================
+                cargarInventario() {
+                    if (!this.formSalida.idCliente) return;
+                    this.loading = true;
+                    this.mensajeCarga = "Consultando stock disponible...";
+                    this.inventarioCliente = [];
+                    this.carritoSalida = []; // Limpiar carrito al cambiar cliente
+
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            this.inventarioCliente = res;
+                            this.loading = false;
+                            console.log('Inventario cargado:', res.length, 'items');
+                        })
+                        .withFailureHandler(err => {
+                            this.loading = false;
+                            console.error('Error cargando inventario:', err);
+                            alert('Error al cargar inventario: ' + err);
+                        })
+                        .apiGetInventarioCliente(this.formSalida.idCliente);
+                },
+
+                agregarAlCarrito(inv) {
+                    // Evitar duplicados
+                    if (this.carritoSalida.find(x => x.lote === inv.lote && x.idProducto === inv.idProducto)) {
+                        return alert("Este lote ya está en la orden de salida.");
+                    }
+
+                    // Buscar peso nominal para el cálculo
+                    const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
+                    const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
+
+                    // DEBUG: Verificar valores
+                    console.log('DEBUG agregarAlCarrito:', {
+                        producto: inv.nombreProducto,
+                        idProducto: inv.idProducto,
+                        prodCatalogo: prodCatalogo,
+                        pesoNominal: pesoBase,
+                        todosLosProductos: this.productos // NUEVO: Ver array completo
+                    });
+
+                    this.carritoSalida.push({
+                        ...inv,
+                        salidaCajas: 0,
+                        salidaKg: 0,
+                        maxPeso: inv.peso,
+                        maxCajas: inv.cajas,
+                        _pesoNominal: pesoBase
+                    });
+                },
+
+                // Cálculo Automático Peso Salida (Editable)
+                calcularPesoSalida(item) {
+                    console.log('DEBUG calcularPesoSalida:', {
+                        producto: item.nombreProducto,
+                        salidaCajas: item.salidaCajas,
+                        _pesoNominal: item._pesoNominal,
+                        calculado: item.salidaCajas * item._pesoNominal
+                    });
+
+                    if (item._pesoNominal && item.salidaCajas > 0) {
+                        let sugerido = item.salidaCajas * item._pesoNominal;
+                        // Sugerimos el valor, el usuario puede editarlo después si la caja estaba incompleta
+                        item.salidaKg = parseFloat(sugerido.toFixed(2));
+                    }
+                },
+
+                // ==========================================
+                // 7. BÚSQUEDA Y EDICIÓN DE MOVIMIENTOS
+                // ==========================================
+                buscarMovimiento() {
+                    if (!this.busquedaId) return;
+                    this.loading = true;
+                    this.mensajeCarga = "Buscando registro...";
+
+                    google.script.run.withSuccessHandler(res => {
+                        this.loading = false;
+                        this.modoEdicionMovimiento = true;
+
+                        // Cargar datos en el formulario de Entrada (reusamos la vista)
+                        this.form = {
+                            id: res.header.id,
+                            idCliente: res.header.idCliente,
+                            docReferencia: res.header.docReferencia,
+                            fecha: res.header.fecha,
+                            items: res.items
+                        };
+
+                        this.vista = 'entrada'; // Forzamos ir a la vista de entrada para editar
+
+                    }).withFailureHandler(err => {
+                        this.loading = false;
+                        alert("No se encontró el movimiento: " + err);
+                    }).apiGetMovimientoDetalle(this.busquedaId);
+                },
+
+                cancelarEdicionMovimiento() {
+                    this.modoEdicionMovimiento = false;
+                    this.form = { id: '', idCliente: '', docReferencia: '', fecha: new Date().toISOString().split('T')[0], items: [] };
+                    this.busquedaId = '';
+                    this.agregarFila();
+                },
+
+                // ==========================================
+                // 8. GUARDADO FINAL (TRANSACCIONES)
+                // ==========================================
+                guardarTransaccion(tipo) {
+                    let payload = {};
+                    const getNom = (id) => this.clientes.find(c => c.id === id)?.nombre || id;
+
+                    // A. Preparar Payload ENTRADA
+                    if (tipo === 'ENTRADA') {
+                        if (!this.form.idCliente || this.form.items.length === 0) return alert("Complete los datos obligatorios.");
+
+                        payload = {
+                            id: this.modoEdicionMovimiento ? this.form.id : null, // ID si es edición
+                            tipo: 'ENTRADA',
+                            idCliente: this.form.idCliente,
+                            nombreCliente: getNom(this.form.idCliente),
+                            docReferencia: this.form.docReferencia,
+                            fecha: this.form.fecha,
+                            totalCajas: this.totalCajas,
+                            totalPeso: this.totalPeso,
+                            productos: JSON.parse(JSON.stringify(this.form.items))
+                        };
+                    }
+                    // B. Preparar Payload SALIDA
+                    else {
+                        if (this.carritoSalida.length === 0) return alert("El carrito de salida está vacío.");
+
+                        // Validaciones de stock (visuales y lógicas)
+                        const invalid = this.carritoSalida.find(i => i.salidaKg <= 0 || i.salidaKg > i.maxPeso + 0.1); // +0.1 tolerancia
+                        flotante
+                        if (invalid) return alert(`Revise el item ${invalid.lote}: El peso de salida no es válido o excede el stock.`);
+
+                        const sumCajas = this.carritoSalida.reduce((a, b) => a + b.salidaCajas, 0);
+                        const sumPeso = this.carritoSalida.reduce((a, b) => a + b.salidaKg, 0);
+
+                        payload = {
+                            tipo: 'SALIDA',
+                            idCliente: this.formSalida.idCliente,
+                            nombreCliente: getNom(this.formSalida.idCliente),
+                            docReferencia: this.formSalida.docReferencia || 'Despacho',
+                            totalCajas: sumCajas,
+                            totalPeso: sumPeso,
+                            productos: this.carritoSalida.map(i => ({
+                                idProducto: i.idProducto,
+                                lote: i.lote,
+                                cantidadCajas: i.salidaCajas * -1, // Negativo
+                                pesoKg: i.salidaKg * -1 // Negativo
+                            }))
+                        };
+                    }
+
+                    // C. Enviar al Servidor
+                    this.loading = true;
+                    this.mensajeCarga = this.modoEdicionMovimiento ? "Actualizando registro..." : "Generando movimiento y PDF...";
+
+                    // Decidir función: Guardar Nuevo o Actualizar Existente
+                    const funcionAPI = this.modoEdicionMovimiento ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
+
+                    google.script.run.withSuccessHandler(res => {
                         this.loading = false;
                         if (res.success) {
-                            alert("✅ PDF Resumen Ejecutivo generado exitosamente!");
-                            // Abrir PDF en nueva pestaña
-                            if (res.pdfUrl) {
+                            alert(res.message);
+                            // Abrir PDF si existe (solo al crear nuevo usualmente, o regenerar)
+                            if (res.pdfUrl && res.pdfUrl.startsWith('http')) {
                                 window.open(res.pdfUrl, '_blank');
                             }
+
+                            // Limpieza post-guardado
+                            if (this.modoEdicionMovimiento) {
+                                this.cancelarEdicionMovimiento();
+                                this.vista = 'movimientos'; // Volver al historial al terminar edición
+                                this.cargarHistorial(); // Recargar lista
+                            } else {
+                                if (tipo === 'ENTRADA') {
+                                    this.form.items = [];
+                                    this.agregarFila();
+                                    this.form.docReferencia = '';
+                                } else {
+                                    this.carritoSalida = [];
+                                    this.cargarInventario(); // Refrescar stock visual
+                                }
+                            }
+                            this.recargarDatos(); // Actualizar datos globales
                         } else {
-                            alert("Error generando PDF: " + res.error);
+                            alert("Error: " + res.error);
                         }
-                    })
-                    .withFailureHandler(err => {
+                    })[funcionAPI](payload);
+                },
+
+                // ==========================================
+                // 9. MÓDULO HISTORIAL
+                // ==========================================
+                cargarHistorial() {
+                    this.loading = true;
+                    google.script.run.withSuccessHandler(res => {
+                        this.historialData = res;
                         this.loading = false;
-                        alert("Error: " + err);
-                    })
-                    .apiGenerarPDFFacturaResumen(payload);
-            },
+                    }).apiGetHistorialCompleto();
+                },
+                editarMovimientoDesdeHistorial(id) {
+                    this.busquedaId = id;
+                    this.buscarMovimiento(); // Reutilizamos la función existente
+                },
 
-            /**
-             * Genera PDF de facturación en formato DETALLADO con tabla completa
-             */
-            generarPDFDetallado() {
-                if (!this.billingResult) {
-                    return alert("Primero debe calcular la facturación.");
-                }
+                // ==========================================
+                // 10. MÓDULO FACTURACIÓN
+                // ==========================================
+                calcularFacturacion() {
+                    if (!this.formBilling.idCliente || !this.formBilling.inicio || !this.formBilling.fin) {
+                        return alert("Seleccione cliente y fechas.");
+                    }
 
-                // Validar que el período no exceda 40 días
-                if (this.billingResult.dias > 40) {
-                    return alert(`⚠️ El reporte detallado está limitado a 40 días.\n\nPeríodo actual: ${this.billingResult.dias} días\n\nPor favor, ajuste el rango de fechas o use el Resumen Ejecutivo para períodos más largos.`);
-                }
+                    this.loading = true;
+                    this.mensajeCarga = "Calculando desglose diario (esto puede tardar)...";
+                    this.billingResult = null;
 
-                this.loading = true;
-                this.mensajeCarga = "Generando PDF detallado (puede tardar según el período)...";
-
-                // Buscar información completa del cliente
-                const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
-
-                if (!cliente) {
-                    this.loading = false;
-                    return alert("Error: No se encontró la información del cliente.");
-                }
-
-                // Preparar payload completo incluyendo detalle día a día
-                const payload = {
-                    tipo: 'DETALLADO',
-                    cliente: {
-                        id: this.formBilling.idCliente,
-                        nombre: cliente.nombre,
-                        nit: cliente.nit
-                    },
-                    periodo: {
-                        inicio: this.formBilling.inicio,
-                        fin: this.formBilling.fin
-                    },
-                    metricas: {
-                        dias: this.billingResult.dias,
-                        costoBase: this.billingResult.costoBase,
-                        costoExcedente: this.billingResult.costoExcedente,
-                        diasConExcedente: this.billingResult.diasConExcedente,
-                        totalPagar: this.billingResult.totalPagar
-                    },
-                    contrato: cliente.contratoInfo,
-                    detalleDiario: this.billingResult.detalleDiario // Tabla completa incluida
-                };
-
-                google.script.run
-                    .withSuccessHandler(res => {
+                    google.script.run.withSuccessHandler(res => {
                         this.loading = false;
                         if (res.success) {
-                            alert("✅ PDF Detallado generado exitosamente!");
-                            // Abrir PDF en nueva pestaña
-                            if (res.pdfUrl) {
-                                window.open(res.pdfUrl, '_blank');
-                            }
+                            this.billingResult = res;
                         } else {
-                            alert("Error generando PDF: " + res.error);
+                            alert("Error: " + res.error);
                         }
-                    })
-                    .withFailureHandler(err => {
+                    }).apiCalcularFacturacion(this.formBilling.idCliente, this.formBilling.inicio, this.formBilling.fin);
+                },
+
+                // ==========================================
+                // 10.1 GENERACIÓN DE PDFs DE FACTURACIÓN
+                // ==========================================
+
+                /**
+                * Genera PDF de facturación en formato RESUMEN EJECUTIVO
+                */
+                generarPDFResumen() {
+                    if (!this.billingResult) {
+                        return alert("Primero debe calcular la facturación.");
+                    }
+
+                    this.loading = true;
+                    this.mensajeCarga = "Generando PDF de resumen ejecutivo...";
+
+                    // Buscar información completa del cliente
+                    const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
+
+                    if (!cliente) {
                         this.loading = false;
-                        alert("Error: " + err);
-                    })
-                    .apiGenerarPDFFacturaDetallada(payload);
-            },
+                        return alert("Error: No se encontró la información del cliente.");
+                    }
 
-            // ==========================================
-            // 11. MÓDULO CONFIGURACIÓN
-            // ==========================================
-            guardarConfiguracion() {
-                if (!this.clienteTitular) {
-                    return alert("Debe seleccionar un cliente titular.");
+                    // Calcular posición promedio utilizada
+                    const posicionPromedio = this.billingResult.detalleDiario && this.billingResult.detalleDiario.length > 0
+                        ? (this.billingResult.detalleDiario.reduce((sum, d) => sum + d.posUsadas, 0) / this.billingResult.dias).toFixed(2)
+                        : 0;
+
+                    // Preparar payload completo para el PDF
+                    const payload = {
+                        tipo: 'RESUMEN',
+                        cliente: {
+                            id: this.formBilling.idCliente,
+                            nombre: cliente.nombre,
+                            nit: cliente.nit
+                        },
+                        periodo: {
+                            inicio: this.formBilling.inicio,
+                            fin: this.formBilling.fin
+                        },
+                        metricas: {
+                            dias: this.billingResult.dias,
+                            costoBase: this.billingResult.costoBase,
+                            costoExcedente: this.billingResult.costoExcedente,
+                            diasConExcedente: this.billingResult.diasConExcedente,
+                            totalPagar: this.billingResult.totalPagar,
+                            posicionPromedio: posicionPromedio
+                        },
+                        contrato: cliente.contratoInfo
+                        // NO incluye detalleDiario para resumen (solo métricas)
+                    };
+
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            this.loading = false;
+                            if (res.success) {
+                                alert("✅ PDF Resumen Ejecutivo generado exitosamente!");
+                                // Abrir PDF en nueva pestaña
+                                if (res.pdfUrl) {
+                                    window.open(res.pdfUrl, '_blank');
+                                }
+                            } else {
+                                alert("Error generando PDF: " + res.error);
+                            }
+                        })
+                        .withFailureHandler(err => {
+                            this.loading = false;
+                            alert("Error: " + err);
+                        })
+                        .apiGenerarPDFFacturaResumen(payload);
+                },
+
+                /**
+                * Genera PDF de facturación en formato DETALLADO con tabla completa
+                */
+                generarPDFDetallado() {
+                    if (!this.billingResult) {
+                        return alert("Primero debe calcular la facturación.");
+                    }
+
+                    // Validar que el período no exceda 40 días
+                    if (this.billingResult.dias > 40) {
+                        return alert(`⚠️ El reporte detallado está limitado a 40 días.\n\nPeríodo actual: ${this.billingResult.dias}
+    días\n\nPor favor, ajuste el rango de fechas o use el Resumen Ejecutivo para períodos más largos.`);
+                    }
+
+                    this.loading = true;
+                    this.mensajeCarga = "Generando PDF detallado (puede tardar según el período)...";
+
+                    // Buscar información completa del cliente
+                    const cliente = this.clientes.find(c => c.id === this.formBilling.idCliente);
+
+                    if (!cliente) {
+                        this.loading = false;
+                        return alert("Error: No se encontró la información del cliente.");
+                    }
+
+                    // Preparar payload completo incluyendo detalle día a día
+                    const payload = {
+                        tipo: 'DETALLADO',
+                        cliente: {
+                            id: this.formBilling.idCliente,
+                            nombre: cliente.nombre,
+                            nit: cliente.nit
+                        },
+                        periodo: {
+                            inicio: this.formBilling.inicio,
+                            fin: this.formBilling.fin
+                        },
+                        metricas: {
+                            dias: this.billingResult.dias,
+                            costoBase: this.billingResult.costoBase,
+                            costoExcedente: this.billingResult.costoExcedente,
+                            diasConExcedente: this.billingResult.diasConExcedente,
+                            totalPagar: this.billingResult.totalPagar
+                        },
+                        contrato: cliente.contratoInfo,
+                        detalleDiario: this.billingResult.detalleDiario // Tabla completa incluida
+                    };
+
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            this.loading = false;
+                            if (res.success) {
+                                alert("✅ PDF Detallado generado exitosamente!");
+                                // Abrir PDF en nueva pestaña
+                                if (res.pdfUrl) {
+                                    window.open(res.pdfUrl, '_blank');
+                                }
+                            } else {
+                                alert("Error generando PDF: " + res.error);
+                            }
+                        })
+                        .withFailureHandler(err => {
+                            this.loading = false;
+                            alert("Error: " + err);
+                        })
+                        .apiGenerarPDFFacturaDetallada(payload);
+                },
+
+                // ==========================================
+                // 11. MÓDULO CONFIGURACIÓN
+                // ==========================================
+                guardarConfiguracion() {
+                    if (!this.clienteTitular) {
+                        return alert("Debe seleccionar un cliente titular.");
+                    }
+
+                    // Guardar en localStorage
+                    localStorage.setItem('clienteTitular', this.clienteTitular);
+
+                    alert("✅ Configuración guardada exitosamente.\n\nEl cliente titular ha sido establecido.");
+
+                    // Volver al dashboard
+                    this.vista = 'dashboard';
                 }
-
-                // Guardar en localStorage
-                localStorage.setItem('clienteTitular', this.clienteTitular);
-
-                alert("✅ Configuración guardada exitosamente.\n\nEl cliente titular ha sido establecido.");
-
-                // Volver al dashboard
-                this.vista = 'dashboard';
-            }
-        },
-        mounted() { this.iniciarApp(); }
-    }).mount('#app');
+            },
+            mounted() { this.iniciarApp(); }
+        }).mount('#app');
+    } catch (e) {
+        alert("CRITICAL ERROR Starting App: " + e.message + "\n" + e.stack);
+    }
 </script>

@@ -116,7 +116,8 @@ function apiGetDashboardData(idCliente) {
  * Calcula el inventario actual de un cliente específico
  */
 function apiGetInventarioCliente(idCliente) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const headers = ss.getSheetByName('MOV_HEADER').getDataRange().getValues();
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
   const products = ss.getSheetByName('DIM_PRODUCTOS').getDataRange().getValues();
@@ -184,6 +185,10 @@ function apiGetInventarioCliente(idCliente) {
         if (String(a.lote) > String(b.lote)) return 1;
         return 0;
     });
+  } catch (e) {
+    Logger.log("Error apiGetInventarioCliente: " + e);
+    return []; // Retornar array vacio en error para no romper frontend
+  }
 }
 
 // ======================================================
@@ -191,7 +196,8 @@ function apiGetInventarioCliente(idCliente) {
 // ======================================================
 
 function apiGetProductosConStock(idCliente) {
-  const productosBase = apiGetProductos(idCliente); 
+  try {
+    const productosBase = apiGetProductos(idCliente); 
   
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
@@ -214,6 +220,10 @@ function apiGetProductosConStock(idCliente) {
     stockCajas: (stockMap[p.id]?.cajas || 0).toFixed(1),
     stockPeso: (stockMap[p.id]?.peso || 0).toFixed(2)
   }));
+  } catch (e) {
+    Logger.log("Error apiGetProductosConStock: " + e);
+    return [];
+  }
 }
 
 // ======================================================
@@ -221,7 +231,8 @@ function apiGetProductosConStock(idCliente) {
 // ======================================================
 
 function apiGetMovimientoDetalle(idMovimiento) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const headers = ss.getSheetByName('MOV_HEADER').getDataRange().getValues();
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
   
@@ -249,6 +260,9 @@ function apiGetMovimientoDetalle(idMovimiento) {
     },
     items: items
   };
+  } catch (e) {
+    throw e; // Relanzar para que el frontend lo maneje via withFailureHandler si se usa, o el caller lo capture
+  }
 }
 
 /**
@@ -302,11 +316,16 @@ function apiActualizarMovimiento(payload) {
     
     // Actualizar columnas: FECHA(3), ID_CLIENTE(4), REF(5), CAJAS(6), PESO(7) (Base 1)
     // En array base 0: Fecha=2, Cliente=3, Ref=4, Cajas=5, Peso=6
-    sheetHeader.getRange(rowIndex + 1, 3).setValue(new Date(data.fecha));
-    sheetHeader.getRange(rowIndex + 1, 4).setValue(data.idCliente);
-    sheetHeader.getRange(rowIndex + 1, 5).setValue(data.docReferencia);
-    sheetHeader.getRange(rowIndex + 1, 6).setValue(data.totalCajas);
-    sheetHeader.getRange(rowIndex + 1, 7).setValue(data.totalPeso);
+    // Actualizar columnas: FECHA(3), ID_CLIENTE(4), REF(5), CAJAS(6), PESO(7) (Base 1)
+    // En array base 0: Fecha=2, Cliente=3, Ref=4, Cajas=5, Peso=6
+    // OPTIMIZACION: Escribir en una sola linea
+    sheetHeader.getRange(rowIndex + 1, 3, 1, 5).setValues([[
+      new Date(data.fecha),
+      data.idCliente,
+      data.docReferencia,
+      data.totalCajas,
+      data.totalPeso
+    ]]);
     
     // 2. Borrar detalles viejos
     const details = sheetDetail.getDataRange().getValues();
@@ -348,6 +367,12 @@ function apiActualizarMovimiento(payload) {
 // ======================================================
 
 function apiGetProductos(idCliente) {
+  try {
+  // CACHE CHECK
+  const cacheKey = 'PRODUCTOS_DATA_' + (idCliente || 'ALL');
+  const cached = getFromCache(cacheKey);
+  if (cached) return cached;
+
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const data = ss.getSheetByName('DIM_PRODUCTOS').getDataRange().getValues();
   data.shift();
@@ -365,14 +390,24 @@ function apiGetProductos(idCliente) {
     productos = productos.filter(p => p.idCliente === idCliente);
   }
   
+  saveToCache(cacheKey, productos);
   return productos;
+  } catch (e) {
+    Logger.log("Error apiGetProductos: " + e);
+    return [];
+  }
 }
 
 /**
  * Obtiene clientes con su información de contrato activa
  */
 function apiGetClientes() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  try {
+    // CACHE CHECK
+    const cached = getFromCache('CLIENTES_DATA');
+    if (cached) return cached;
+    
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   
   // 1. Leer Clientes
   const dataCli = ss.getSheetByName('DIM_CLIENTES').getDataRange().getValues();
@@ -395,14 +430,40 @@ function apiGetClientes() {
   });
 
   // 3. Fusionar
-  return dataCli.map(row => ({
+  const resultado = dataCli.map(row => ({
     id: row[0],
     nombre: row[1],
     nit: row[2],
     email: row[3] || '',
     telefono: row[4] || '',
-    contratoInfo: mapaContratos[row[0]] || null // Adjuntar info contrato si existe
+    contratoInfo: mapaContratos[row[0]] || null
   }));
+
+  saveToCache('CLIENTES_DATA', resultado);
+  return resultado;
+
+  } catch (e) {
+    Logger.log("Error apiGetClientes: " + e);
+    return [];
+  }
+}
+// ======================================================
+// CACHE HELPERS
+// ======================================================
+function clearCache(key) {
+   try { CacheService.getScriptCache().remove(key); } catch(e) {}
+}
+
+function getFromCache(key) {
+   try {
+     const cached = CacheService.getScriptCache().get(key);
+     if (cached) return JSON.parse(cached);
+   } catch(e) {}
+   return null;
+}
+
+function saveToCache(key, data, seconds = 21600) { // 6 horas default
+   try { CacheService.getScriptCache().put(key, JSON.stringify(data), seconds); } catch(e) {}
 }
 
 function apiGetDataInicial() {
@@ -414,9 +475,27 @@ function apiGuardarMovimiento(payload) {
   return registrarMovimiento(data);
 }
 
-function apiGuardarCliente(form) { return registrarCliente(form); }
-function apiGuardarProducto(form) { return registrarProducto(form); }
-function apiGuardarProductosBatch(lista, idCliente) { return registrarProductosMasivo(lista, idCliente); }
+function apiGuardarCliente(form) { 
+   const res = registrarCliente(form);
+   if (res.success) clearCache('CLIENTES_DATA');
+   return res;
+}
+function apiGuardarProducto(form) { 
+   const res = registrarProducto(form);
+   if (res.success) {
+     clearCache('PRODUCTOS_DATA_ALL');
+     if (form.idCliente) clearCache('PRODUCTOS_DATA_' + form.idCliente);
+   }
+   return res;
+}
+function apiGuardarProductosBatch(lista, idCliente) { 
+   const res = registrarProductosMasivo(lista, idCliente);
+   if (res.success) {
+      clearCache('PRODUCTOS_DATA_ALL');
+      if (idCliente) clearCache('PRODUCTOS_DATA_' + idCliente);
+   }
+   return res;
+}
 
 /**
  * Guarda Cliente + Contrato Inicial
@@ -479,7 +558,9 @@ function apiActualizarCliente(data) {
   data.precioPosicion = Number(data.precioPosicion);
   data.precioExceso = Number(data.precioExceso);
   
-  return actualizarClienteDB(data);
+  const res = actualizarClienteDB(data);
+  if (res.success) clearCache('CLIENTES_DATA');
+  return res;
 }
 
 // ======================================================
@@ -487,7 +568,8 @@ function apiActualizarCliente(data) {
 // ======================================================
 
 function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   
   // 1. Obtener Contrato
   const clientes = apiGetClientes();
@@ -605,6 +687,10 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     detalleDiario: detalle,
     tipoPago: contrato.tipoPago 
   };
+  } catch (e) {
+     Logger.log("Error apiCalcularFacturacion: " + e);
+     return { success: false, error: e.toString() };
+  }
 }
 
 // ======================================================
