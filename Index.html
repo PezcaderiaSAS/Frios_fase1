@@ -7,198 +7,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WMS ColdChain Pro</title>
     <?!= include('css'); ?>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js" crossorigin="anonymous"></script>
 </head>
 
 <body class="d-flex flex-column min-vh-100">
-    <div id="app" class="flex-grow-1 d-flex flex-column">
 
-        <!-- Navbar Glassmorphic -->
-        <nav class="navbar navbar-expand-lg sticky-top py-3">
-            <div class="container-xl">
-                <div class="glass-panel d-flex align-items-center justify-content-between p-2 w-100 px-3">
-
-                    <!-- Brand -->
-                    <a class="navbar-brand d-flex align-items-center gap-3" href="#">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-lg"
-                            style="width: 42px; height: 42px; background: linear-gradient(135deg, #3b82f6, #2563eb);">
-                            <i class="fas fa-snowflake fa-lg"></i>
-                        </div>
-                        <div class="d-flex flex-column" style="line-height: 1;">
-                            <span class="fw-bold fs-5 text-dark tracking-tight">ColdChain</span>
-                            <span class="text-uppercase text-muted" style="font-size: 0.65rem; letter-spacing: 2px;">Pro
-                                WMS</span>
-                        </div>
-                    </a>
-
-                    <!-- Navigation Pills -->
-                    <div class="d-none d-md-flex align-items-center gap-2">
-                        <button @click="vista='dashboard'"
-                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='dashboard' ? 'btn-primary shadow-md' : 'btn-light text-secondary bg-transparent']">
-                            <i class="fas fa-chart-pie"></i> Dashboard
-                        </button>
-
-                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
-
-                        <button @click="vista='entrada'"
-                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='entrada' ? 'btn-success text-white shadow-md' : 'btn-light text-secondary bg-transparent']">
-                            <i class="fas fa-arrow-down" :class="vista!=='entrada' ? 'text-success' : 'text-white'"></i>
-                            Entrada
-                        </button>
-
-                        <button @click="vista='salida'"
-                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='salida' ? 'btn-warning text-white shadow-md' : 'btn-light text-secondary bg-transparent']">
-                            <i class="fas fa-arrow-up" :class="vista!=='salida' ? 'text-warning' : 'text-white'"></i>
-                            Salida
-                        </button>
-
-                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
-
-                        <button @click="vista='productos'"
-                            :class="['btn btn-sm border-0', vista==='productos' ? 'bg-white text-primary shadow-sm fw-bold' : 'text-secondary bg-transparent hover-effect']">
-                            Inventario
-                        </button>
-
-                        <button @click="vista='clientes'"
-                            :class="['btn btn-sm border-0', vista==='clientes' ? 'bg-white text-primary shadow-sm fw-bold' : 'text-secondary bg-transparent hover-effect']">
-                            Clientes
-                        </button>
-
-                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
-
-                        <div class="d-flex gap-1">
-                            <button @click="{ vista='movimientos'; cargarHistorial(); }" title="Historial"
-                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='movimientos' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
-                                style="width: 32px; height: 32px;">
-                                <i class="fas fa-history"></i>
-                            </button>
-
-                            <button @click="vista='billing'" title="Facturación"
-                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='billing' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
-                                style="width: 32px; height: 32px;">
-                                <i class="fas fa-file-invoice-dollar"></i>
-                            </button>
-
-                            <button @click="vista='config'" title="Configuración"
-                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='config' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
-                                style="width: 32px; height: 32px;">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- User Profile -->
-                    <div class="d-flex align-items-center ps-3 border-start border-light border-opacity-50">
-                        <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center shadow-sm"
-                            style="width: 36px; height: 36px; font-size: 0.85rem;">
-                            U
-                        </div>
-                    </div>
+    <!-- Navbar Premium -->
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <div class="rounded-3 bg-primary text-white d-flex align-items-center justify-content-center"
+                    style="width: 36px; height: 36px;">
+                    <i class="fas fa-snowflake fa-sm"></i>
                 </div>
+                <span>ColdChain<span class="text-primary">Pro</span></span>
+            </a>
 
-                <!-- HAMBURGER BUTTON (Mobile Only) -->
-                <button class="btn btn-icon btn-sm d-md-none text-primary ms-2"
-                    @click="mobileMenuOpen = !mobileMenuOpen">
-                    <i class="fas" :class="mobileMenuOpen ? 'fa-times' : 'fa-bars'"></i>
-                </button>
-            </div>
-    </div>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-    <!-- MOBILE MENU OVERLAY -->
-    <transition name="fade">
-        <div v-if="mobileMenuOpen" class="position-fixed top-0 start-0 w-100 h-100 bg-white z-index-1050 d-md-none"
-            style="z-index: 2000; padding-top: 80px;">
-            <div class="container d-flex flex-column gap-3 p-4">
-                <button @click="{ vista='dashboard'; mobileMenuOpen=false; }"
-                    class="btn btn-lg w-100 justify-content-start gap-3"
-                    :class="vista==='dashboard' ? 'btn-primary' : 'btn-light'">
-                    <i class="fas fa-chart-pie"></i> Dashboard
-                </button>
-
-                <button @click="{ vista='entrada'; mobileMenuOpen=false; }"
-                    class="btn btn-lg w-100 justify-content-start gap-3"
-                    :class="vista==='entrada' ? 'btn-success text-white' : 'btn-light'">
-                    <i class="fas fa-arrow-down"></i> Entrada
-                </button>
-
-                <button @click="{ vista='salida'; mobileMenuOpen=false; }"
-                    class="btn btn-lg w-100 justify-content-start gap-3"
-                    :class="vista==='salida' ? 'btn-warning text-white' : 'btn-light'">
-                    <i class="fas fa-arrow-up"></i> Salida
-                </button>
-
-                <hr class="opacity-10 my-1">
-
-                <div class="d-flex gap-2">
-                    <button @click="{ vista='productos'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
-                        <i class="fas fa-boxes me-2"></i> Inventario
-                    </button>
-                    <button @click="{ vista='clientes'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
-                        <i class="fas fa-users me-2"></i> Clientes
-                    </button>
-                </div>
-
-                <div class="d-flex gap-2">
-                    <button @click="{ vista='movimientos'; cargarHistorial(); mobileMenuOpen=false; }"
-                        class="btn btn-light flex-grow-1">
-                        <i class="fas fa-history me-2"></i> Historial
-                    </button>
-                    <button @click="{ vista='billing'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
-                        <i class="fas fa-file-invoice-dollar me-2"></i> Facturas
-                    </button>
-                    <button @click="{ vista='config'; mobileMenuOpen=false; }" class="btn btn-light flex-grow-1">
-                        <i class="fas fa-cog me-2"></i> Config
-                    </button>
-                </div>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto gap-1">
+                    <li class="nav-item">
+                        <a class="nav-link cursor-pointer" href="javascript:void(0)"
+                            onclick="loadView('view-dashboard')">
+                            <i class="fas fa-chart-pie"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link cursor-pointer" href="javascript:void(0)" onclick="loadView('view-entrada')">
+                            <i class="fas fa-arrow-down"></i>Entrada
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link cursor-pointer" href="javascript:void(0)" onclick="loadView('view-salida')">
+                            <i class="fas fa-arrow-up"></i>Salida
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="javascript:void(0)" role="button"
+                            data-bs-toggle="dropdown">
+                            <i class="fas fa-database"></i>Catálogos
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-4 p-2 mt-2">
+                            <li>
+                                <h6 class="dropdown-header text-uppercase small fw-bold text-muted">Gestión Maestra</h6>
+                            </li>
+                            <li><a class="dropdown-item rounded-3 py-2 cursor-pointer"
+                                    onclick="loadView('view-products')">📦 Productos</a></li>
+                            <li><a class="dropdown-item rounded-3 py-2 cursor-pointer"
+                                    onclick="loadView('view-clients')">👥 Clientes</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link cursor-pointer" href="javascript:void(0)"
+                            onclick="loadView('view-movimientos')">
+                            <i class="fas fa-history"></i>Historial
+                        </a>
+                    </li>
+                    <li class="nav-item ms-lg-2 border-start ps-lg-3" style="border-color: #e2e8f0 !important;">
+                        <a class="nav-link cursor-pointer text-primary fw-bold" href="javascript:void(0)"
+                            onclick="loadView('view-billing')">
+                            <i class="fas fa-receipt"></i>Facturación
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
-    </transition>
     </nav>
 
-    <!-- Main Content -->
-    <main class="container-xl py-3 flex-grow-1">
-
-        <!-- Loader Global Modern -->
-        <transition name="fade">
-            <div v-if="loading" class="loader-overlay flex-column gap-3">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-                <div class="glass-panel px-4 py-2 text-primary fw-bold text-uppercase text-xs tracking-wider shadow-sm">
-                    {{ mensajeCarga || 'Procesando...' }}
-                </div>
-            </div>
-        </transition>
-
-        <transition name="fade" mode="out-in">
-            <div key="dashboard" v-show="vista === 'dashboard'">
-                <?!= include('view-dashboard'); ?>
-            </div>
-        </transition>
-        <div v-show="vista === 'clientes'">
-            <?!= include('view-clients'); ?>
-        </div>
-        <div v-show="vista === 'productos'">
-            <?!= include('view-products'); ?>
-        </div>
-        <div v-show="vista === 'entrada'">
-            <?!= include('view-entrada'); ?>
-        </div>
-        <div v-show="vista === 'salida'">
-            <?!= include('view-salida'); ?>
-        </div>
-        <div v-show="vista === 'movimientos'">
-            <?!= include('view-movements'); ?>
-        </div>
-        <div v-show="vista === 'billing'">
-            <?!= include('view-billing'); ?>
-        </div>
-        <div v-show="vista === 'config'">
-            <?!= include('view-config'); ?>
-        </div>
-
+    <main id="app" class="flex-grow-1 container-xl py-4">
+        <!-- Views injected here -->
     </main>
-    </div>
 
-    <?!= include('js-app'); ?>
+    <footer class="text-center py-4 text-muted small mt-auto">
+        <p class="mb-0">WMS ColdChain Pro &copy; 2026</p>
+    </footer>
+
+    <!-- Bootstrap Bundle (Required for Dropdowns) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+
+    <!-- Logic Bundle -->
+    <?!= include('js-logic'); ?>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadView('view-dashboard');
+        });
+        window.loadView = loadView;
+    </script>
 </body>
 
 </html>

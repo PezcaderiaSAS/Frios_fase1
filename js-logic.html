@@ -1,203 +1,568 @@
 <script>
-    /**
-     * Wrapper para convertir google.script.run en Promesas
-     * Permite usar async/await y manejo de errores centralizado
-     */
-    function serverCall(funcName, ...args) {
-        return new Promise((resolve, reject) => {
-            google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)
-            [funcName](...args);
-        });
+    // ======================================================
+    // 1. CONFIGURACIÓN DEL ROUTER (SPA)
+    // ======================================================
+    const Router = {
+        'view-dashboard': initDashboard,
+        'view-products': initProducts,
+        'view-clients': initClients,
+        'view-entrada': initEntrada,
+        'view-salida': initSalida,
+        'view-movements': initMovimientos,
+        'view-billing': initBilling
+    };
+
+    const GLOBAL_STATE = {
+        clientes: [],
+        productos: []
+    };
+
+    // ======================================================
+    // 2. MOTOR DE NAVEGACIÓN
+    // ======================================================
+    function loadView(viewName) {
+        if (!viewName) return;
+        const app = document.getElementById('app');
+
+        app.innerHTML = `
+        <div class="d-flex flex-column align-items-center justify-content-center" style="height: 60vh;">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div class="text-muted fw-bold">Cargando módulo...</div>
+        </div>`;
+
+        google.script.run
+            .withSuccessHandler(function (htmlContent) {
+                app.innerHTML = htmlContent;
+                if (Router[viewName]) {
+                    console.log('Iniciando lógica:', viewName);
+                    try { Router[viewName](); }
+                    catch (e) { console.error(e); alert("Error JS module: " + e.message); }
+                }
+            })
+            .withFailureHandler(function (err) {
+                app.innerHTML = `<div class="alert alert-danger m-4">Error loading view: ${err.message}</div>`;
+            })
+            .getHtmlContent(viewName);
     }
 
-    const { createApp } = Vue;
+    // ======================================================
+    // 3. LOGICA MAESTRA (CONTROLLERS)
+    // ======================================================
 
-    createApp({
-        data() {
-            return {
-                vista: 'entrada',
-                loading: false,
-                mensajeCarga: 'Cargando...',
-                mostrarAltaMasiva: false, // Controla la visibilidad del panel lateral
+    // --- PRODUCTOS ---
+    function initProducts() {
+        const tbody = document.getElementById('products-table-body');
+        const loader = document.getElementById('loading-products');
+        const container = document.getElementById('products-container');
+        const btnRefresh = document.getElementById('btn-refresh-products');
+        if (btnRefresh) btnRefresh.onclick = initProducts;
 
-                // Catálogos
-                clientes: [],
-                productos: [],
-
-                // Alta Masiva Productos
-                nuevosProductos: [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }],
-
-                // Formulario Cliente (Actualizado con posiciones)
-                formCliente: { nombre: '', nit: '', telefono: '', posiciones: 0 },
-
-                // Entrada
-                form: { idCliente: '', docReferencia: '', fecha: new Date().toISOString().split('T')[0], items: [] },
-
-                // Salida
-                formSalida: { idCliente: '', docReferencia: '' },
-                inventarioCliente: [],
-                carritoSalida: []
-            }
-        },
-        computed: {
-            hoy() { return new Date().toLocaleDateString(); },
-            totalCajas() { return this.form.items.reduce((s, i) => s + (i.cantidadCajas || 0), 0).toFixed(1); },
-            totalPeso() { return this.form.items.reduce((s, i) => s + (i.pesoKg || 0), 0).toFixed(2); }
-        },
-        methods: {
-            async iniciarApp() {
-                this.recargarDatos();
-                this.agregarFila();
-            },
-            recargarDatos() {
-                this.loading = true;
-                google.script.run.withSuccessHandler(res => {
-                    this.clientes = res.clientes;
-                    this.productos = res.productos;
-                    this.loading = false;
-                }).apiGetDataInicial();
-            },
-
-            // --- PRODUCTOS ---
-            agregarFilaProducto() { this.nuevosProductos.push({ nombre: '', empaque: 'Caja', pesoNominal: 0 }); },
-            borrarFilaProducto(idx) {
-                if (this.nuevosProductos.length > 1) this.nuevosProductos.splice(idx, 1);
-                else this.nuevosProductos[0] = { nombre: '', empaque: 'Caja', pesoNominal: 0 };
-            },
-            guardarProductosMasivo() {
-                const validos = this.nuevosProductos.filter(p => p.nombre.trim() !== '');
-                if (validos.length === 0) return alert("Ingrese datos.");
-                this.loading = true;
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    alert(res.message);
-                    this.nuevosProductos = [{ nombre: '', empaque: 'Caja', pesoNominal: 0 }];
-                    this.mostrarAltaMasiva = false; // Cerrar panel al guardar
-                    this.recargarDatos();
-                }).apiGuardarProductosBatch(validos);
-            },
-
-            // --- CLIENTES ---
-            crearCliente() {
-                if (!this.formCliente.nombre) return alert("Falta nombre");
-                this.loading = true;
-                google.script.run.withSuccessHandler(res => {
-                    alert(res.message);
-                    this.formCliente = { nombre: '', nit: '', telefono: '', posiciones: 0 };
-                    this.recargarDatos();
-                }).apiGuardarCliente(this.formCliente);
-            },
-
-            // --- ENTRADA ---
-            agregarFila() { this.form.items.push({ idProducto: '', lote: '', cantidadCajas: 0, pesoKg: 0 }); },
-            borrarFila(idx) { this.form.items.splice(idx, 1); },
-            alCambiarProducto(item) {
-                const p = this.productos.find(x => x.id === item.idProducto);
-                if (p) item._pesoBase = p.pesoNominal;
-                this.calcularPesoAuto(item);
-            },
-            calcularPesoAuto(item) {
-                if (item._pesoBase && item.cantidadCajas) item.pesoKg = parseFloat((item.cantidadCajas * item._pesoBase).toFixed(2));
-            },
-
-            // --- SALIDA (NUEVA LÓGICA AUTO-CALC) ---
-            cargarInventario() {
-                if (!this.formSalida.idCliente) return;
-                this.loading = true;
-                this.inventarioCliente = [];
-                this.carritoSalida = [];
-                google.script.run.withSuccessHandler(res => {
-                    this.inventarioCliente = res;
-                    this.loading = false;
-                }).apiGetInventarioCliente(this.formSalida.idCliente);
-            },
-            agregarAlCarrito(inv) {
-                if (this.carritoSalida.find(x => x.lote === inv.lote && x.idProducto === inv.idProducto)) return alert("Ya está en lista");
-
-                // Buscamos el Peso Nominal en el catálogo de productos para poder calcular
-                const prodCatalogo = this.productos.find(p => p.id === inv.idProducto);
-                const pesoBase = prodCatalogo ? prodCatalogo.pesoNominal : 0;
-
-                this.carritoSalida.push({
-                    ...inv,
-                    salidaCajas: 0,
-                    salidaKg: 0,
-                    maxPeso: inv.peso,
-                    _pesoNominal: pesoBase // Guardamos esto oculto para el cálculo
+        google.script.run.withSuccessHandler(data => {
+            GLOBAL_STATE.productos = data;
+            let html = '';
+            if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
+            else {
+                data.forEach(p => {
+                    const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
+                    html += `<tr>
+                      <td class="ps-4 font-monospace small text-muted">${p.id}</td>
+                      <td class="fw-bold text-dark">${p.nombre}</td>
+                      <td><span class="badge bg-light text-dark border fw-normal">${p.idCliente}</span></td>
+                      <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
+                      <td class="text-end font-monospace">${p.stockCajas}</td>
+                      <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
+                  </tr>`;
                 });
-            },
-            // Función que se activa al escribir en "Cajas" de salida
-            calcularPesoSalida(item) {
-                if (item._pesoNominal && item.salidaCajas > 0) {
-                    // Calculamos: Cajas * PesoNominal
-                    const pesoSugerido = item.salidaCajas * item._pesoNominal;
-                    // Validamos que no se pase del stock disponible
-                    if (pesoSugerido <= item.maxPeso) {
-                        item.salidaKg = parseFloat(pesoSugerido.toFixed(2));
-                    } else {
-                        // Si el cálculo se pasa (ej: caja incompleta), limitamos al maximo o dejamos que el usuario corrija
-                        item.salidaKg = parseFloat(item.maxPeso.toFixed(2));
-                    }
-                }
-            },
-
-            // --- TRANSACCIONES ---
-            guardarTransaccion(tipo) {
-                // ... (Lógica de guardado igual que antes, asegúrate de copiar la versión corregida del paso anterior que incluye el nombre del cliente)
-                // Por brevedad, asumo que mantienes la función de guardado corregida que te di en el turno anterior.
-                // Solo asegúrate de incluirla aquí.
-                let payload = {};
-                const getNom = (id) => this.clientes.find(c => c.id === id)?.nombre || id;
-
-                if (tipo === 'ENTRADA') {
-                    if (!this.form.idCliente || this.form.items.length === 0) return alert("Faltan datos");
-                    payload = {
-                        tipo: 'ENTRADA',
-                        idCliente: this.form.idCliente,
-                        nombreCliente: getNom(this.form.idCliente),
-                        docReferencia: this.form.docReferencia,
-                        totalCajas: this.totalCajas,
-                        totalPeso: this.totalPeso,
-                        productos: JSON.parse(JSON.stringify(this.form.items))
-                    };
-                } else {
-                    if (this.carritoSalida.length === 0) return alert("Carro vacío");
-                    const invalid = this.carritoSalida.find(i => i.salidaKg <= 0 || i.salidaKg > i.maxPeso);
-                    if (invalid) return alert("Revise los pesos de salida");
-
-                    payload = {
-                        tipo: 'SALIDA',
-                        idCliente: this.formSalida.idCliente,
-                        nombreCliente: getNom(this.formSalida.idCliente),
-                        docReferencia: this.formSalida.docReferencia || 'Despacho',
-                        totalCajas: this.carritoSalida.reduce((a, b) => a + b.salidaCajas, 0),
-                        totalPeso: this.carritoSalida.reduce((a, b) => a + b.salidaKg, 0),
-                        productos: this.carritoSalida.map(i => ({
-                            idProducto: i.idProducto,
-                            lote: i.lote,
-                            cantidadCajas: i.salidaCajas * -1,
-                            pesoKg: i.salidaKg * -1
-                        }))
-                    };
-                }
-
-                this.loading = true;
-                this.mensajeCarga = "Guardando...";
-                google.script.run.withSuccessHandler(res => {
-                    this.loading = false;
-                    if (res.success) {
-                        alert("Éxito! ID: " + res.id);
-                        if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
-                        if (tipo === 'SALIDA') { this.cargarInventario(); }
-                        else { this.form.items = []; this.agregarFila(); }
-                    } else {
-                        alert("Error: " + res.error);
-                    }
-                }).apiGuardarMovimiento(payload);
             }
-        },
-        mounted() { this.iniciarApp(); }
-    }).mount('#app');
+            tbody.innerHTML = html;
+            loader.classList.add('d-none');
+            container.classList.remove('d-none');
+        }).apiGetProductosConStock();
+    }
+
+    // --- DASHBOARD ---
+    function initDashboard() {
+        const select = document.getElementById('dash-select-cliente');
+        const loader = document.getElementById('dash-loading');
+        const content = document.getElementById('dash-content');
+        const empty = document.getElementById('dash-empty');
+
+        google.script.run.withSuccessHandler(clientes => {
+            GLOBAL_STATE.clientes = clientes;
+            let opts = '<option value="" disabled selected>Seleccione Cliente...</option>';
+            clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
+            select.innerHTML = opts;
+
+            const saved = sessionStorage.getItem('dashboardCliente');
+            if (saved) { select.value = saved; loadData(saved); }
+        }).apiGetClientes();
+
+        select.onchange = () => {
+            const id = select.value;
+            sessionStorage.setItem('dashboardCliente', id);
+            loadData(id);
+        };
+
+        function loadData(id) {
+            loader.classList.remove('d-none');
+            content.classList.add('d-none');
+            empty.classList.add('d-none');
+
+            google.script.run.withSuccessHandler(res => {
+                loader.classList.add('d-none');
+                if (res.success) {
+                    document.getElementById('dash-peso-total').textContent = res.ocupacion.pesoTotal.toFixed(0);
+                    document.getElementById('dash-porcentaje').textContent = res.ocupacion.porcentaje.toFixed(0);
+                    document.getElementById('dash-pos-usadas').textContent = res.ocupacion.posicionesUsadas.toFixed(1);
+                    document.getElementById('dash-pos-contrato').textContent = res.contrato.posiciones;
+
+                    const tbody = document.getElementById('dash-historial-body');
+                    let html = '';
+                    res.historial.forEach(m => {
+                        const badge = m.tipo === 'ENTRADA' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning';
+                        html += `<tr>
+                          <td class="ps-4"><span class="badge rounded-pill fw-bold ${badge}">${m.tipo.charAt(0)}</span></td>
+                          <td><div class="fw-bold small">${m.ref || 'N/A'}</div></td>
+                          <td class="text-xs text-secondary">${new Date(m.fecha).toLocaleDateString()}</td>
+                          <td class="text-end fw-bold pe-4">${m.totalPeso} kg</td>
+                          <td class="text-end"><a href="${m.url}" target="_blank" class="btn btn-sm btn-icon btn-light rounded-circle"><i class="fas fa-file-pdf"></i></a></td>
+                      </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                    content.classList.remove('d-none');
+                } else alert(res.error);
+            }).apiGetDashboardData(id);
+        }
+    }
+
+    // --- CLIENTES ---
+    function initClients() {
+        const tbody = document.getElementById('clients-table-body');
+        const btnNew = document.getElementById('btn-nuevo-cliente');
+
+        google.script.run.withSuccessHandler(clientes => {
+            GLOBAL_STATE.clientes = clientes;
+            let html = '';
+            clientes.forEach(c => {
+                const tag = c.contratoInfo ? `<span class="badge bg-info-subtle text-info-emphasis">${c.contratoInfo.posiciones} Pos.</span>` : `<span class="badge bg-secondary-subtle">Sin Contrato</span>`;
+                html += `<tr>
+                <td class="ps-4"><div class="fw-bold text-dark">${c.nombre}</div><small class="text-muted">${c.nit}</small></td>
+                <td>${tag}</td>
+                <td class="small">${c.telefono || '-'}</td>
+                <td class="text-end pe-4"><button class="btn btn-sm btn-light border btn-edit" data-id="${c.id}">Editar</button></td>
+            </tr>`;
+            });
+            tbody.innerHTML = html;
+
+            document.querySelectorAll('.btn-edit').forEach(b => b.onclick = () => loadEdit(b.dataset.id));
+        }).apiGetClientes();
+
+        btnNew.onclick = () => {
+            document.getElementById('form-cliente').reset();
+            document.getElementById('cli-id').value = '';
+            document.getElementById('btn-cancel-edit').classList.add('d-none');
+            document.getElementById('form-client-title').textContent = 'Nuevo Cliente';
+        };
+
+        const selectTipo = document.getElementById('cli-tipoPago');
+        const fieldPrecio = document.getElementById('field-precio-dia');
+        if (selectTipo) selectTipo.onchange = () => {
+            if (selectTipo.value === 'POSTPAGO') fieldPrecio.classList.remove('d-none');
+            else fieldPrecio.classList.add('d-none');
+        };
+
+        document.getElementById('form-cliente').onsubmit = (e) => {
+            e.preventDefault();
+            const form = {
+                id: document.getElementById('cli-id').value,
+                nombre: document.getElementById('cli-nombre').value,
+                nit: document.getElementById('cli-nit').value,
+                telefono: document.getElementById('cli-telefono').value,
+                posiciones: document.getElementById('cli-posiciones').value,
+                tipoPago: document.getElementById('cli-tipoPago').value,
+                precioPosicion: document.getElementById('cli-precio').value,
+                precioExceso: document.getElementById('cli-exceso').value,
+                precioDiaPosicion: document.getElementById('cli-precioDia').value
+            };
+            const method = form.id ? 'apiActualizarCliente' : 'apiGuardarCliente';
+            google.script.run.withSuccessHandler(res => {
+                alert(res.message);
+                if (res.success) { initClients(); btnNew.click(); }
+            })[method](form);
+        };
+
+        function loadEdit(id) {
+            const c = GLOBAL_STATE.clientes.find(x => x.id === id);
+            if (c) {
+                document.getElementById('cli-id').value = c.id;
+                document.getElementById('cli-nombre').value = c.nombre;
+                document.getElementById('cli-nit').value = c.nit;
+                document.getElementById('cli-telefono').value = c.telefono;
+                if (c.contratoInfo) {
+                    document.getElementById('cli-posiciones').value = c.contratoInfo.posiciones;
+                    document.getElementById('cli-precio').value = c.contratoInfo.precio;
+                    document.getElementById('cli-exceso').value = c.contratoInfo.exceso;
+                    document.getElementById('cli-tipoPago').value = c.contratoInfo.tipoPago || 'PREPAGO';
+                    document.getElementById('cli-precioDia').value = c.contratoInfo.precioDiaPosicion || 0;
+                    if (selectTipo) selectTipo.onchange();
+                }
+                document.getElementById('form-client-title').textContent = 'Editar Cliente';
+                const btnCancel = document.getElementById('btn-cancel-edit');
+                btnCancel.classList.remove('d-none');
+                btnCancel.onclick = btnNew.onclick;
+            }
+        }
+    }
+
+    // --- VISTA: ENTRADA ---
+    function initEntrada() {
+        const tbody = document.getElementById('entrada-tbody');
+        const selectCli = document.getElementById('entrada-cliente');
+        const btnAdd = document.getElementById('entrada-btn-add');
+        const btnSave = document.getElementById('entrada-btn-save');
+
+        google.script.run.withSuccessHandler(res => {
+            GLOBAL_STATE.clientes = res.clientes;
+            GLOBAL_STATE.productos = res.productos;
+            let opts = '<option value="" disabled selected>Seleccione...</option>';
+            res.clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
+            selectCli.innerHTML = opts;
+
+            document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
+            document.getElementById('entrada-fecha-hoy').textContent = new Date().toLocaleDateString();
+            addItemRow();
+        }).apiGetDataInicial();
+
+        btnAdd.onclick = addItemRow;
+        btnSave.onclick = saveEntrada;
+
+        function addItemRow() {
+            const tr = document.createElement('tr');
+            let prodOpts = '<option value="" disabled selected>Seleccione...</option>';
+            GLOBAL_STATE.productos.forEach(p => prodOpts += `<option value="${p.id}" data-weight="${p.pesoNominal}">${p.nombre} (${p.empaque})</option>`);
+
+            tr.innerHTML = `
+            <td class="ps-3"><select class="form-select form-select-sm prod-select">${prodOpts}</select></td>
+            <td><input type="date" class="form-control form-control-sm fecha-venc"></td>
+            <td><input type="number" step="0.1" class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis input-cajas" placeholder="0"></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm fw-bold bg-success-subtle text-success input-peso" placeholder="0.00"></td>
+            <td class="text-center"><button class="btn btn-sm btn-link text-danger btn-del"><i class="fas fa-trash"></i></button></td>`;
+            tbody.appendChild(tr);
+
+            const sel = tr.querySelector('.prod-select');
+            const box = tr.querySelector('.input-cajas');
+            const wgt = tr.querySelector('.input-peso');
+            const del = tr.querySelector('.btn-del');
+
+            sel.onchange = () => {
+                const opt = sel.options[sel.selectedIndex];
+                tr.dataset.nominal = opt.dataset.weight || 0;
+                calcRow(tr);
+            };
+            box.oninput = () => calcRow(tr);
+            wgt.oninput = updateTotal;
+            del.onclick = () => { if (tbody.children.length > 0) tr.remove(); updateTotal(); };
+        }
+
+        function calcRow(tr) {
+            const nom = parseFloat(tr.dataset.nominal) || 0;
+            const boxes = parseFloat(tr.querySelector('.input-cajas').value) || 0;
+            if (nom > 0 && boxes > 0) tr.querySelector('.input-peso').value = (boxes * nom).toFixed(2);
+            updateTotal();
+        }
+
+        function updateTotal() {
+            let c = 0, p = 0;
+            document.querySelectorAll('#entrada-tbody tr').forEach(tr => {
+                c += parseFloat(tr.querySelector('.input-cajas').value) || 0;
+                p += parseFloat(tr.querySelector('.input-peso').value) || 0;
+            });
+            document.getElementById('entrada-total-cajas').textContent = c.toFixed(1);
+            document.getElementById('entrada-total-peso').textContent = p.toFixed(2) + ' Kg';
+        }
+
+        function saveEntrada() {
+            const idCli = selectCli.value;
+            if (!idCli) return alert("Seleccione Cliente");
+
+            const rows = [];
+            document.querySelectorAll('#entrada-tbody tr').forEach(tr => {
+                const pid = tr.querySelector('.prod-select').value;
+                const c = parseFloat(tr.querySelector('.input-cajas').value);
+                const p = parseFloat(tr.querySelector('.input-peso').value);
+                const v = tr.querySelector('.fecha-venc').value;
+                if (pid && c > 0 && p > 0) rows.push({ idProducto: pid, cantidadCajas: c, pesoKg: p, fechaVencimiento: v, lote: 0 });
+            });
+            if (rows.length === 0) return alert("Ingrese items validos");
+
+            const pay = {
+                tipo: 'ENTRADA',
+                idCliente: idCli,
+                nombreCliente: selectCli.options[selectCli.selectedIndex].text,
+                docReferencia: document.getElementById('entrada-doc').value,
+                fecha: document.getElementById('entrada-fecha').value,
+                totalCajas: parseFloat(document.getElementById('entrada-total-cajas').textContent),
+                totalPeso: parseFloat(document.getElementById('entrada-total-peso').textContent.replace(' Kg', '')),
+                productos: rows
+            };
+
+            btnSave.disabled = true; btnSave.textContent = 'Guardando...';
+            google.script.run.withSuccessHandler(res => {
+                btnSave.disabled = false; btnSave.textContent = 'Guardar Entrada';
+                if (res.success) {
+                    alert("Éxito ID: " + res.id);
+                    if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
+                    tbody.innerHTML = ''; addItemRow();
+                    document.getElementById('entrada-doc').value = ''; updateTotal();
+                } else alert(res.error);
+            }).apiGuardarMovimiento(pay);
+        }
+    }
+
+    // --- VISTA: SALIDA ---
+    function initSalida() {
+        const selectCli = document.getElementById('salida-cliente');
+        const invBody = document.getElementById('salida-inv-body');
+        const cartItems = document.getElementById('salida-cart-items');
+        const cartEmpty = document.getElementById('salida-cart-empty');
+        const btnSave = document.getElementById('salida-btn-save');
+        let CART = [];
+
+        google.script.run.withSuccessHandler(c => {
+            let opts = '<option value="" disabled selected>Seleccione...</option>';
+            c.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
+            selectCli.innerHTML = opts;
+        }).apiGetClientes();
+        google.script.run.withSuccessHandler(p => GLOBAL_STATE.productos = p).apiGetProductos();
+
+        selectCli.onchange = () => {
+            google.script.run.withSuccessHandler(inv => {
+                invBody.innerHTML = '';
+                CART = []; renderCart();
+                if (!inv || inv.length === 0) { document.getElementById('salida-empty').classList.remove('d-none'); return; }
+
+                document.getElementById('salida-empty').classList.add('d-none');
+                document.getElementById('salida-inv-container').classList.remove('d-none');
+
+                const groups = {};
+                inv.forEach(i => { if (!groups[i.idProducto]) groups[i.idProducto] = { name: i.nombreProducto, items: [] }; groups[i.idProducto].items.push(i); });
+
+                let html = '';
+                for (const [pid, g] of Object.entries(groups)) {
+                    html += `<tr class="table-secondary"><td colspan="4" class="fw-bold ps-3"><i class="fas fa-box me-1"></i> ${g.name}</td></tr>`;
+                    g.items.forEach(i => {
+                        const json = JSON.stringify(i).replace(/"/g, '&quot;');
+                        html += `<tr>
+                        <td class="ps-4 font-monospace text-muted">Lote: ${i.lote}</td>
+                        <td class="text-end">${i.cajas.toFixed(1)}</td>
+                        <td class="text-end fw-bold text-success">${i.peso.toFixed(2)}</td>
+                        <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary py-0 px-2 btn-add" data-item="${json}"><i class="fas fa-plus"></i></button></td>
+                     </tr>`;
+                    });
+                }
+                invBody.innerHTML = html;
+                document.querySelectorAll('.btn-add').forEach(b => b.onclick = () => addToCart(JSON.parse(b.dataset.item)));
+            }).apiGetInventarioCliente(selectCli.value);
+        };
+
+        function addToCart(item) {
+            if (CART.find(x => x.lote === item.lote && x.idProducto === item.idProducto)) return;
+            const pDef = GLOBAL_STATE.productos.find(p => p.id === item.idProducto);
+            CART.push({ ...item, salidaCajas: 0, salidaKg: 0, maxPeso: item.peso, nominal: pDef ? pDef.pesoNominal : 0 });
+            renderCart();
+        }
+
+        function renderCart() {
+            if (CART.length === 0) { cartItems.innerHTML = ''; cartEmpty.classList.remove('d-none'); }
+            else cartEmpty.classList.add('d-none');
+
+            let html = '';
+            CART.forEach((item, idx) => {
+                html += `<div class="card mb-2 shadow-sm border bg-light"><div class="card-body p-3">
+                 <div class="d-flex justify-content-between mb-2"><strong class="small text-truncate w-75">${item.nombreProducto}</strong><button class="btn-close btn-close-sm btn-rem" data-idx="${idx}"></button></div>
+                 <div class="row g-2 align-items-end">
+                    <div class="col-3"><label class="text-xs text-muted">Cajas</label><input type="number" class="form-control form-control-sm inp-cajas" data-idx="${idx}" value="${item.salidaCajas}"></div>
+                    <div class="col-6"><label class="text-xs text-muted">Peso</label>
+                        <div class="input-group input-group-sm"><input type="number" class="form-control fw-bold text-warning-emphasis inp-peso" data-idx="${idx}" value="${item.salidaKg}"><span class="input-group-text text-xs">/${item.maxPeso.toFixed(1)}</span></div>
+                    </div>
+                 </div></div></div>`;
+            });
+            cartItems.innerHTML = html;
+            updateTotal();
+
+            document.querySelectorAll('.btn-rem').forEach(b => { b.onclick = () => { CART.splice(b.dataset.idx, 1); renderCart(); } });
+
+            const bindInputs = () => {
+                document.querySelectorAll('.inp-cajas').forEach(inp => {
+                    inp.oninput = (e) => {
+                        const i = CART[e.target.dataset.idx];
+                        i.salidaCajas = parseFloat(e.target.value) || 0;
+                        if (i.nominal > 0) {
+                            let w = i.salidaCajas * i.nominal;
+                            i.salidaKg = (w > i.maxPeso) ? parseFloat(i.maxPeso.toFixed(2)) : parseFloat(w.toFixed(2));
+                        }
+                        renderCart();
+                        const newInps = document.querySelectorAll('.inp-cajas');
+                        if (newInps[e.target.dataset.idx]) {
+                            newInps[e.target.dataset.idx].focus();
+                            newInps[e.target.dataset.idx].value = e.target.value;
+                        }
+                    };
+                });
+                document.querySelectorAll('.inp-peso').forEach(inp => {
+                    inp.onchange = (e) => { CART[e.target.dataset.idx].salidaKg = parseFloat(e.target.value) || 0; updateTotal(); };
+                });
+            };
+            bindInputs();
+        }
+
+        function updateTotal() {
+            const tot = CART.reduce((a, b) => a + (b.salidaKg || 0), 0);
+            document.getElementById('salida-total-peso').textContent = tot.toFixed(2);
+        }
+
+        btnSave.onclick = () => {
+            if (CART.length === 0) return alert("Vacio");
+            const pay = {
+                tipo: 'SALIDA', idCliente: selectCli.value, nombreCliente: selectCli.options[selectCli.selectedIndex].text,
+                docReferencia: document.getElementById('salida-doc').value || 'Despacho',
+                totalCajas: CART.reduce((a, b) => a + b.salidaCajas, 0), totalPeso: CART.reduce((a, b) => a + b.salidaKg, 0),
+                productos: CART.map(i => ({ idProducto: i.idProducto, lote: i.lote, cantidadCajas: i.salidaCajas * -1, pesoKg: i.salidaKg * -1 }))
+            };
+            btnSave.disabled = true; btnSave.textContent = 'Procesando...';
+            google.script.run.withSuccessHandler(res => {
+                btnSave.disabled = false; btnSave.textContent = 'Confirmar Despacho';
+                if (res.success) { alert("Exito: " + res.id); if (res.pdfUrl) window.open(res.pdfUrl, '_blank'); selectCli.onchange(); document.getElementById('salida-doc').value = ''; }
+                else alert(res.error);
+            }).apiGuardarMovimiento(pay);
+        };
+    }
+
+    // --- VISTA: MOVIMIENTOS ---
+    function initMovimientos() {
+        const search = document.getElementById('mov-search');
+        const tbody = document.getElementById('mov-table-body');
+        const loader = document.getElementById('mov-loading');
+        const empty = document.getElementById('mov-empty');
+        const table = tbody.closest('.card'); // Container
+
+        let allMovs = [];
+
+        function render(list) {
+            if (!list || list.length === 0) {
+                tbody.innerHTML = '';
+                table.classList.add('d-none');
+                empty.classList.remove('d-none');
+                return;
+            }
+            empty.classList.add('d-none');
+            table.classList.remove('d-none');
+
+            let html = '';
+            list.forEach(m => {
+                const badge = m.tipo === 'ENTRADA' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning text-dark';
+                html += `<tr>
+                <td class="ps-4 fw-bold font-monospace text-primary small">${m.id}<div class="text-muted fw-normal" style="font-size:0.7em">${m.ref || 'N/A'}</div></td>
+                <td><div class="fw-bold">${new Date(m.fecha).toLocaleDateString()}</div><small class="text-muted">${new Date(m.fecha).toLocaleTimeString()}</small></td>
+                <td>${m.nombreCliente}</td>
+                <td><span class="badge ${badge}">${m.tipo}</span></td>
+                <td class="text-end fw-bold">${m.totalPeso}</td>
+                <td class="text-end pe-4"><a href="${m.url}" target="_blank" class="btn btn-sm btn-icon btn-light rounded-circle text-secondary"><i class="fas fa-file-pdf"></i></a></td>
+              </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        loader.classList.remove('d-none');
+        table.classList.add('d-none');
+        empty.classList.add('d-none');
+
+        google.script.run.withSuccessHandler(res => {
+            loader.classList.add('d-none');
+            allMovs = res;
+            render(allMovs);
+        }).apiGetUltimosMovimientos();
+
+        document.getElementById('mov-btn-refresh').onclick = initMovimientos;
+
+        search.oninput = () => {
+            const q = search.value.toLowerCase();
+            const filtered = allMovs.filter(m =>
+                m.id.toLowerCase().includes(q) ||
+                m.nombreCliente.toLowerCase().includes(q) ||
+                (m.ref && m.ref.toLowerCase().includes(q))
+            );
+            render(filtered);
+        };
+    }
+
+    // --- VISTA: BILLING ---
+    function initBilling() {
+        const selCli = document.getElementById('bill-cliente');
+        const dateIn = document.getElementById('bill-inicio');
+        const dateOut = document.getElementById('bill-fin');
+        const btnCalc = document.getElementById('bill-btn-calc');
+        const loader = document.getElementById('bill-loading');
+        const results = document.getElementById('bill-results');
+
+        google.script.run.withSuccessHandler(c => {
+            let opts = '<option value="" disabled selected>Seleccione...</option>';
+            c.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
+            selCli.innerHTML = opts;
+        }).apiGetClientes();
+
+        const now = new Date();
+        dateOut.valueAsDate = now;
+        dateIn.valueAsDate = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        btnCalc.onclick = () => {
+            if (!selCli.value) return alert("Seleccione Cliente");
+            results.classList.add('d-none');
+            loader.classList.remove('d-none');
+            btnCalc.disabled = true;
+
+            const req = { idCliente: selCli.value, inicio: dateIn.value, fin: dateOut.value };
+
+            google.script.run.withSuccessHandler(res => {
+                loader.classList.add('d-none');
+                btnCalc.disabled = false;
+                if (!res.success) return alert("Error/Sin datos");
+
+                document.getElementById('bill-kpi-dias').textContent = res.dias;
+                document.getElementById('bill-kpi-base').textContent = '$' + res.costoBase.toLocaleString();
+                document.getElementById('bill-kpi-exce').textContent = '$' + res.costoExcedente.toLocaleString();
+                document.getElementById('bill-kpi-exce-dias').textContent = `${res.diasConExcedente} días con exceso`;
+                document.getElementById('bill-kpi-total').textContent = '$' + res.totalPagar.toLocaleString();
+
+                const alert = document.getElementById('bill-alert-type');
+                if (res.tipoPago === 'PREPAGO') {
+                    alert.className = 'alert mb-0 alert-success';
+                    document.getElementById('bill-type-text').textContent = 'Prepago';
+                    document.getElementById('bill-type-desc').textContent = 'Base incluye posiciones contratadas.';
+                } else {
+                    alert.className = 'alert mb-0 alert-warning';
+                    document.getElementById('bill-type-text').textContent = 'Postpago';
+                    document.getElementById('bill-type-desc').textContent = 'Pago total al retiro.';
+                }
+
+                const tbody = document.getElementById('bill-table-body');
+                let html = '';
+                res.detalleDiario.forEach(d => {
+                    const trClass = d.excedente > 0 ? 'table-warning' : '';
+                    const diff = d.excedente > 0 ? `+${d.excedente.toFixed(2)}` : '-';
+                    html += `<tr class="${trClass}">
+                    <td class="ps-4 font-monospace">${new Date(d.fecha).toLocaleDateString()}</td>
+                    <td class="text-end">${d.stockKg.toLocaleString()}</td>
+                    <td class="text-end fw-bold">${d.posUsadas.toFixed(2)}</td>
+                    <td class="text-end text-muted">${d.posContratadas}</td>
+                    <td class="text-end fw-bold ${d.excedente > 0 ? 'text-danger' : 'text-success'}">${diff}</td>
+                    <td class="text-end pe-4 fw-bold text-dark">$${d.costoDia.toLocaleString()}</td>
+                  </tr>`;
+                });
+                tbody.innerHTML = html;
+                results.classList.remove('d-none');
+
+            }).apiGenerarFacturacion(req);
+        };
+    }
 </script>

@@ -14,6 +14,11 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+// Función auxiliar para servir las vistas parciales (Router SPA)
+function getHtmlContent(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
 // ======================================================
 // 1. API: DASHBOARD Y ESTADÍSTICAS (INTELIGENCIA DE NEGOCIO)
 // ======================================================
@@ -145,7 +150,7 @@ function apiGetInventarioCliente(idCliente) {
           idProducto: r[2],
           nombreProducto: mapProductos[r[2]]?.nombre || 'Producto ' + r[2],
           empaque: mapProductos[r[2]]?.empaque || 'Und',
-          lote: r[3],
+          lote: r[3] instanceof Date ? r[3].toISOString().split('T')[0] : r[3],
           cajas: 0,
           peso: 0
         };
@@ -500,57 +505,8 @@ function apiGuardarProductosBatch(lista, idCliente) {
 /**
  * Guarda Cliente + Contrato Inicial
  */
-function registrarCliente(data) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-    const sheetCli = ss.getSheetByName('DIM_CLIENTES');
-    const sheetCon = ss.getSheetByName('DIM_CONTRATOS'); 
-    
-    // 1. Generar ID Cliente (ej: CLI005)
-    const idCliente = generateNextId('DIM_CLIENTES', 'CLI');
-    
-    // 2. Guardar Datos Maestros del Cliente
-    sheetCli.appendRow([
-      idCliente,
-      data.nombre,
-      data.nit,
-      data.email || '',
-      data.telefono || '',
-      'ACTIVO'
-    ]);
+// (Función registrarCliente eliminada para usar la versión de Database.gs)
 
-    // 3. Crear el Contrato Vinculado (VITAL)
-    // Si no vienen datos, usamos valores por defecto del negocio
-    const posiciones = Number(data.posiciones) || 0;
-    const precioPos = Number(data.precioPosicion) || 450000; // Default $450k
-    const precioExc = Number(data.precioExceso) || 85;       // Default $85 pesos
-
-    if (posiciones > 0) {
-      const idContrato = generateNextId('DIM_CONTRATOS', 'CTR');
-      // Columnas: ID_CONTRATO, ID_CLIENTE, POSICIONES, FACTOR(800), PRECIO_MES, PRECIO_EXCESO, FECHA, ESTADO
-      sheetCon.appendRow([
-        idContrato,
-        idCliente,
-        posiciones,
-        800,        // Factor estándar de la industria (800kg = 1 Posición)
-        precioPos,
-        precioExc,
-        new Date(), // Fecha de inicio contrato
-        'ACTIVO'
-      ]);
-    }
-    
-    return { success: true, message: `Cliente ${data.nombre} y Contrato registrados.` };
-
-  } catch(e) {
-    return { success: false, error: e.message };
-  } finally {
-    lock.releaseLock();
-  }
-}
 
 function apiActualizarCliente(data) {
   // Asegurar que los números sean números y no texto "10"

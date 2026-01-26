@@ -1,72 +1,73 @@
-<div class="row g-4">
+<div class="row g-4 p-4">
     <!-- Status Card -->
     <div class="col-12 col-md-5">
-        <div class="card h-100 border-0" :class="dashboardExceso ? 'border-danger' : 'border-0'">
-            <!-- border-0 to rely on glass effect -->
+        <div id="dash-card-status" class="card h-100 border-0">
             <div
                 class="card-header d-flex justify-content-between align-items-center bg-transparent border-bottom border-light">
                 <span class="text-uppercase tracking-wider text-xs fw-bold text-secondary">Estado Actual</span>
-                <select v-model="dashboardCliente" @change="cargarDashboard"
+                <select id="dash-select-cliente"
                     class="form-select form-select-sm w-auto py-1 px-3 text-xs shadow-none border-light bg-light rounded-pill">
-                    <option value="" disabled>Seleccione Cliente...</option>
-                    <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                    <option value="" disabled selected>Seleccione Cliente...</option>
+                    <!-- Options injected by JS -->
                 </select>
             </div>
 
-            <div class="card-body d-flex flex-column justify-content-center" v-if="dashboardData">
-                <div class="d-flex align-items-center justify-content-between mb-4 px-2">
-                    <div>
-                        <h6 class="text-uppercase text-muted fw-bold text-xs mb-2">Ocupación Total</h6>
-                        <h2 class="display-4 fw-bold text-dark mb-0 lh-1">
-                            {{ dashboardData.ocupacion.pesoTotal.toFixed(0) }}
-                            <span class="fs-5 text-muted fw-normal ms-1">kg</span>
-                        </h2>
-                    </div>
+            <!-- Loader -->
+            <div id="dash-loading" class="card-body d-none text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
 
-                    <div class="text-center position-relative">
-                        <!-- Modern Progress Ring -->
-                        <div class="position-relative d-inline-flex align-items-center justify-content-center"
-                            :style="'width: 90px; height: 90px; border-radius: 50%; background: conic-gradient(' + 
-                                    (dashboardExceso ? '#ef4444' : '#3b82f6') + ' ' + 
-                                    Math.min(dashboardData.ocupacion.porcentaje, 100) + '%, #e2e8f0 0); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'">
-                            <div class="bg-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-4"
-                                style="width: 76px; height: 76px; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06);">
-                                {{ dashboardData.ocupacion.porcentaje.toFixed(0) }}%
+            <!-- Content -->
+            <div id="dash-content" class="d-none">
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <div class="d-flex align-items-center justify-content-between mb-4 px-2">
+                        <div>
+                            <h6 class="text-uppercase text-muted fw-bold text-xs mb-2">Ocupación Total</h6>
+                            <h2 class="display-4 fw-bold text-dark mb-0 lh-1">
+                                <span id="dash-peso-total">0</span>
+                                <span class="fs-5 text-muted fw-normal ms-1">kg</span>
+                            </h2>
+                        </div>
+
+                        <div class="text-center position-relative">
+                            <!-- Simple Ring for Vanilla (Complex gradient requires JS manipulation, keeping simple for now) -->
+                            <div class="position-relative d-inline-flex align-items-center justify-content-center bg-light rounded-circle"
+                                style="width: 90px; height: 90px;">
+                                <div class="bg-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-4"
+                                    style="width: 76px; height: 76px; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06);">
+                                    <span id="dash-porcentaje">0</span>%
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="d-flex justify-content-between align-items-center border-top border-light pt-4 px-2">
-                    <div class="text-center">
-                        <div class="fw-bold fs-4" :class="dashboardExceso ? 'text-danger' : 'text-dark'">
-                            {{ dashboardData.ocupacion.posicionesUsadas.toFixed(1) }}
+                    <div class="d-flex justify-content-between align-items-center border-top border-light pt-4 px-2">
+                        <div class="text-center">
+                            <div id="dash-pos-usadas" class="fw-bold fs-4 text-dark">0</div>
+                            <div class="text-xs text-muted text-uppercase tracking-wide fw-bold">Posiciones</div>
                         </div>
-                        <div class="text-xs text-muted text-uppercase tracking-wide fw-bold">Posiciones</div>
+                        <div class="vr opacity-10 mx-3"></div>
+                        <div class="text-center">
+                            <div id="dash-pos-contrato" class="fw-bold fs-4 text-secondary">0</div>
+                            <div class="text-xs text-muted text-uppercase tracking-wide fw-bold">Contratadas</div>
+                        </div>
                     </div>
-                    <div class="vr opacity-10 mx-3"></div>
-                    <div class="text-center">
-                        <div class="fw-bold fs-4 text-secondary">{{ dashboardData.contrato.posiciones }}</div>
-                        <div class="text-xs text-muted text-uppercase tracking-wide fw-bold">Contratadas</div>
-                    </div>
-                </div>
 
-                <!-- Alert de Exceso -->
-                <div v-if="dashboardExceso"
-                    class="mt-4 p-3 rounded-3 bg-danger-subtle text-danger border border-danger-subtle d-flex align-items-center gap-3">
-                    <i class="fas fa-exclamation-circle fa-lg"></i>
-                    <div style="line-height: 1.2;">
-                        <strong class="d-block text-sm">¡Capacidad Excedida!</strong>
-                        <span class="text-xs opacity-75">
-                            {{ (dashboardData.ocupacion.posicionesUsadas - dashboardData.contrato.posiciones).toFixed(2)
-                            }} pos. sobre el límite.
-                        </span>
+                    <!-- Alert de Exceso -->
+                    <div id="dash-alert-exceso"
+                        class="mt-4 p-3 rounded-3 bg-danger-subtle text-danger border border-danger-subtle d-none align-items-center gap-3">
+                        <i class="fas fa-exclamation-circle fa-lg"></i>
+                        <div style="line-height: 1.2;">
+                            <strong class="d-block text-sm">¡Capacidad Excedida!</strong>
+                            <span id="dash-exceso-msg" class="text-xs opacity-75"></span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card-body d-flex align-items-center justify-content-center text-muted italic bg-light bg-opacity-50"
-                v-else>
+            <!-- Empty State -->
+            <div id="dash-empty"
+                class="card-body d-flex align-items-center justify-content-center text-muted italic bg-light bg-opacity-50">
                 <div class="text-center">
                     <i class="fas fa-search fa-2x mb-3 opacity-25"></i>
                     <p class="mb-0 small">Seleccione un cliente para visualizar las métricas.</p>
@@ -77,41 +78,32 @@
 
     <!-- Quick Actions & History -->
     <div class="col-12 col-md-7 d-flex flex-column gap-4">
-
-        <!-- Quick Actions -->
+        <!-- Quick Actions (Static) -->
         <div class="row g-3">
             <div class="col-6">
-                <div @click="vista='entrada'"
-                    class="card h-100 p-3 text-center cursor-pointer hover-effect border-0 shadow-sm"
+                <div onclick="loadView('view-entrada')"
+                    class="card h-100 p-3 text-center cursor-pointer border-0 shadow-sm"
                     style="background: linear-gradient(145deg, #ffffff 0%, #f0fdf4 100%);">
-                    <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
-                        <div class="rounded-circle bg-success text-white d-inline-flex p-3 mb-3 shadow-md"
-                            style="width: 56px; height: 56px; align-items: center; justify-content: center;">
-                            <i class="fas fa-arrow-down fa-lg"></i>
-                        </div>
+                    <div class="card-body p-2">
+                        <i class="fas fa-arrow-down fa-lg text-success mb-2"></i>
                         <h5 class="fw-bold text-dark mb-1">Entrada</h5>
-                        <p class="text-muted text-xs mb-0">Recepción de mercancía</p>
                     </div>
                 </div>
             </div>
             <div class="col-6">
-                <div @click="vista='salida'"
-                    class="card h-100 p-3 text-center cursor-pointer hover-effect border-0 shadow-sm"
+                <div onclick="loadView('view-salida')"
+                    class="card h-100 p-3 text-center cursor-pointer border-0 shadow-sm"
                     style="background: linear-gradient(145deg, #ffffff 0%, #fffbeb 100%);">
-                    <div class="card-body d-flex flex-column align-items-center justify-content-center p-2">
-                        <div class="rounded-circle bg-warning text-white d-inline-flex p-3 mb-3 shadow-md"
-                            style="width: 56px; height: 56px; align-items: center; justify-content: center;">
-                            <i class="fas fa-arrow-up fa-lg"></i>
-                        </div>
+                    <div class="card-body p-2">
+                        <i class="fas fa-arrow-up fa-lg text-warning mb-2"></i>
                         <h5 class="fw-bold text-dark mb-1">Salida</h5>
-                        <p class="text-muted text-xs mb-0">Despacho y picking</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Recent History -->
-        <div class="card flex-grow-1 border-0" v-if="dashboardData && dashboardData.historial">
+        <div class="card flex-grow-1 border-0">
             <div class="card-header bg-transparent border-bottom border-light py-3">
                 <span class="text-uppercase tracking-wider text-xs fw-bold text-secondary">Últimos Movimientos</span>
             </div>
@@ -126,27 +118,8 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr v-for="mov in dashboardData.historial" :key="mov.id">
-                            <td class="ps-4">
-                                <span class="badge rounded-pill fw-bold"
-                                    :class="mov.tipo === 'ENTRADA' ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-warning-subtle text-warning border border-warning-subtle'">
-                                    {{ mov.tipo.substring(0,1) }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="fw-bold text-dark text-sm">{{ mov.ref || 'N/A' }}</div>
-                                <div class="text-xs text-muted">{{ mov.id }}</div>
-                            </td>
-                            <td class="text-xs text-secondary">{{ new Date(mov.fecha).toLocaleDateString() }}</td>
-                            <td class="text-end fw-bold text-dark pe-4">{{ mov.totalPeso }} kg</td>
-                            <td class="text-end">
-                                <a :href="mov.url" target="_blank"
-                                    class="btn btn-sm btn-icon btn-light rounded-circle text-secondary" title="Ver PDF">
-                                    <i class="fas fa-file-pdf"></i>
-                                </a>
-                            </td>
-                        </tr>
+                    <tbody id="dash-historial-body">
+                        <!-- Rows injected by JS -->
                     </tbody>
                 </table>
             </div>

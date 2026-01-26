@@ -6,61 +6,26 @@
                     style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);">
                     <i class="fas fa-cog fa-2x mb-2"></i>
                     <h4 class="mb-0 fw-bold">Configuración del Sistema</h4>
-                    <p class="small mb-0 mt-1 opacity-75">Defina el cliente titular de esta aplicación</p>
                 </div>
                 <div class="card-body p-5">
-                    <div class="alert alert-info d-flex align-items-start mb-4">
-                        <i class="fas fa-info-circle me-3 mt-1"></i>
-                        <div>
-                            <strong>Cliente Titular:</strong> El cliente seleccionado será el propietario principal de
-                            esta instalación del WMS.
-                            Toda la información y reportes se filtrarán automáticamente para este cliente.
-                        </div>
-                    </div>
-
                     <div class="mb-4">
                         <label class="form-label fw-bold">Seleccione Cliente Titular</label>
-                        <select v-model="clienteTitular" class="form-select form-select-lg" required>
-                            <option value="" disabled>Seleccione un cliente...</option>
-                            <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                        <select id="config-cliente" class="form-select form-select-lg">
+                            <option value="" disabled selected>Seleccione un cliente...</option>
+                            <!-- Injected -->
                         </select>
                     </div>
 
-                    <div v-if="clienteTitular" class="card bg-light border-0 mb-4 p-3">
+                    <div id="config-info" class="card bg-light border-0 mb-4 p-3 d-none">
                         <h6 class="text-muted text-uppercase small mb-2">Cliente Seleccionado:</h6>
-                        <h5 class="fw-bold mb-1">{{ clientes.find(c => c.id === clienteTitular)?.nombre }}</h5>
-                        <p class="small text-muted mb-0">
-                            <i class="fas fa-id-card me-1"></i> {{ clientes.find(c => c.id === clienteTitular)?.nit ||
-                            'N/A' }}
-                        </p>
+                        <h5 id="config-cli-name" class="fw-bold mb-1"></h5>
+                        <p class="small text-muted mb-0"><i class="fas fa-id-card me-1"></i> <span
+                                id="config-cli-nit"></span></p>
                     </div>
 
-                    <button @click="guardarConfiguracion" class="btn btn-primary btn-lg w-100"
-                        :disabled="!clienteTitular">
+                    <button id="config-btn-save" class="btn btn-primary btn-lg w-100" disabled>
                         <i class="fas fa-save me-2"></i> Guardar Configuración
                     </button>
-                </div>
-            </div>
-
-            <!-- Información adicional -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3"><i class="fas fa-shield-alt text-primary me-2"></i>Información del Sistema
-                    </h6>
-                    <div class="row text-center small">
-                        <div class="col-4">
-                            <div class="text-muted">Versión</div>
-                            <div class="fw-bold">v2.0</div>
-                        </div>
-                        <div class="col-4">
-                            <div class="text-muted">Clientes</div>
-                            <div class="fw-bold">{{ clientes.length }}</div>
-                        </div>
-                        <div class="col-4">
-                            <div class="text-muted">Productos</div>
-                            <div class="fw-bold">{{ productos.length }}</div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

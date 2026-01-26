@@ -7,21 +7,21 @@
             <div class="row g-3 align-items-end">
                 <div class="col-md-4">
                     <label class="form-label">Cliente</label>
-                    <select v-model="formBilling.idCliente" class="form-select">
-                        <option value="" disabled>Seleccione...</option>
-                        <option v-for="c in clientes" :value="c.id">{{ c.nombre }}</option>
+                    <select id="bill-cliente" class="form-select">
+                        <option value="" disabled selected>Seleccione...</option>
+                        <!-- Injected -->
                     </select>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Desde</label>
-                    <input type="date" v-model="formBilling.inicio" class="form-control">
+                    <input type="date" id="bill-inicio" class="form-control">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Hasta</label>
-                    <input type="date" v-model="formBilling.fin" class="form-control">
+                    <input type="date" id="bill-fin" class="form-control">
                 </div>
                 <div class="col-md-2">
-                    <button @click="calcularFacturacion" class="btn btn-primary w-100">
+                    <button id="bill-btn-calc" class="btn btn-primary w-100">
                         <i class="fas fa-calculator me-1"></i> Calcular
                     </button>
                 </div>
@@ -29,86 +29,60 @@
         </div>
     </div>
 
+    <!-- Loader -->
+    <div id="bill-loading" class="text-center py-5 d-none">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="text-muted mt-2">Calculando corte...</p>
+    </div>
+
     <!-- Results Section -->
-    <div v-if="billingResult">
+    <div id="bill-results" class="d-none">
         <!-- KPI Cards -->
         <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
                 <div class="card p-3 text-center h-100 bg-light">
                     <small class="text-muted fw-bold text-uppercase">Días Totales</small>
-                    <div class="display-6 fw-bold text-dark">{{ billingResult.dias }}</div>
+                    <div id="bill-kpi-dias" class="display-6 fw-bold text-dark">0</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="card p-3 text-center h-100 bg-white border-info">
                     <small class="text-muted fw-bold text-uppercase">Base Contrato</small>
-                    <div class="fs-3 fw-bold text-info">${{ billingResult.costoBase.toLocaleString() }}</div>
+                    <div id="bill-kpi-base" class="fs-3 fw-bold text-info">$0</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="card p-3 text-center h-100 bg-warning-subtle border-0">
                     <small class="text-warning-emphasis fw-bold text-uppercase">Excedentes</small>
-                    <div class="fs-3 fw-bold text-warning-emphasis">${{ billingResult.costoExcedente.toLocaleString() }}
-                    </div>
-                    <small class="text-muted">{{ billingResult.diasConExcedente }} días con exceso</small>
+                    <div id="bill-kpi-exce" class="fs-3 fw-bold text-warning-emphasis">$0</div>
+                    <small id="bill-kpi-exce-dias" class="text-muted">0 días con exceso</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="card p-3 text-center h-100 bg-dark text-white">
                     <small class="opacity-50 fw-bold text-uppercase">Total a Pagar</small>
-                    <div class="fs-2 fw-bold">${{ billingResult.totalPagar.toLocaleString() }}</div>
+                    <div id="bill-kpi-total" class="fs-2 fw-bold">$0</div>
                 </div>
             </div>
         </div>
 
-        <!-- NUEVO: Indicador de Tipo de Pago -->
+        <!-- Indicador Tipo Pago -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="alert mb-0"
-                    :class="billingResult.tipoPago === 'PREPAGO' ? 'alert-success' : 'alert-warning'">
-                    <i class="fas me-2"
-                        :class="billingResult.tipoPago === 'PREPAGO' ? 'fa-calendar-check' : 'fa-hand-holding-usd'"></i>
-                    <strong>Tipo de Facturación:</strong>
-                    {{ billingResult.tipoPago === 'PREPAGO' ? 'Prepago - Pago Adelantado' : 'Postpago - Pago al Retiro'
-                    }}
-                    <div class="small mt-1">
-                        {{ billingResult.tipoPago === 'PREPAGO'
-                        ? 'Costo base incluye posiciones contratadas. Excedentes facturados aparte.'
-                        : 'Se factura 100% del uso. Pago al momento del retiro del producto.' }}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Botones de Generación de PDFs -->
-        <div class="row mb-4" v-if="billingResult">
-            <div class="col-12">
-                <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
-                    <div>
-                        <i class="fas fa-file-pdf me-2"></i>
-                        <strong>PDFs Disponibles:</strong> Puede generar dos tipos de documentos con la información
-                        calculada
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button @click="generarPDFResumen" class="btn btn-success">
-                            <i class="fas fa-file-invoice me-2"></i> Resumen Ejecutivo
-                        </button>
-                        <button @click="generarPDFDetallado" class="btn btn-primary">
-                            <i class="fas fa-file-alt me-2"></i> Detallado Completo
-                        </button>
-                    </div>
+                <div id="bill-alert-type" class="alert mb-0 alert-success">
+                    <i id="bill-icon-type" class="fas fa-calendar-check me-2"></i>
+                    <strong>Tipo de Facturación:</strong> <span id="bill-type-text">Prepago</span>
+                    <div id="bill-type-desc" class="small mt-1">Costo base incluye posiciones contratadas.</div>
                 </div>
             </div>
         </div>
 
         <!-- Detail Table -->
         <div class="card">
-            <div class="card-header bg-white">
-                Desglose Diario de Ocupación
-            </div>
+            <div class="card-header bg-white">Desglose Diario de Ocupación</div>
             <div class="table-responsive" style="max-height: 500px;">
                 <table class="table table-sm table-striped mb-0 small">
-                    <thead class="table-light sticky-top" style="z-index: 1;">
+                    <thead class="table-light sticky-top">
                         <tr>
                             <th class="ps-4">Fecha</th>
                             <th class="text-end">Stock (Kg)</th>
@@ -118,20 +92,8 @@
                             <th class="text-end pe-4">Costo Día</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr v-for="dia in billingResult.detalleDiario" :key="dia.fecha"
-                            :class="dia.excedente > 0 ? 'table-warning' : ''">
-                            <td class="ps-4 font-monospace">{{ new Date(dia.fecha).toLocaleDateString() }}</td>
-                            <td class="text-end">{{ dia.stockKg.toLocaleString() }}</td>
-                            <td class="text-end fw-bold">{{ dia.posUsadas.toFixed(2) }}</td>
-                            <td class="text-end text-muted">{{ dia.posContratadas }}</td>
-                            <td class="text-end fw-bold" :class="dia.excedente > 0 ? 'text-danger' : 'text-success'">
-                                {{ dia.excedente > 0 ? '+' + dia.excedente.toFixed(2) : '-' }}
-                            </td>
-                            <td class="text-end pe-4 fw-bold text-dark">
-                                ${{ dia.costoDia.toLocaleString() }}
-                            </td>
-                        </tr>
+                    <tbody id="bill-table-body">
+                        <!-- Injected -->
                     </tbody>
                 </table>
             </div>

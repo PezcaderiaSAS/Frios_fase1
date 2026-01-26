@@ -1,11 +1,11 @@
-<div class="animate-enter">
+<div class="p-4">
     <div class="row g-4">
         <!-- List Panel -->
         <div class="col-md-8">
             <div class="card h-100">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 fw-bold">Directorio de Clientes</h5>
-                    <button class="btn btn-sm btn-outline-primary" @click="cancelarEdicionCliente">
+                    <button id="btn-nuevo-cliente" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-plus me-1"></i>Nuevo
                     </button>
                 </div>
@@ -19,33 +19,8 @@
                                 <th class="text-end pe-4">Acción</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr v-for="c in clientes" :key="c.id">
-                                <td class="ps-4">
-                                    <div class="fw-bold text-dark">{{ c.nombre }}</div>
-                                    <small class="text-muted">{{ c.id }} • {{ c.nit }}</small>
-                                </td>
-                                <td>
-                                    <div v-if="c.contratoInfo">
-                                        <span class="badge bg-info-subtle text-info-emphasis">{{
-                                            c.contratoInfo.posiciones }} Pos.</span>
-                                        <div class="small text-muted mt-1">${{ c.contratoInfo.precio.toLocaleString()
-                                            }}/mes</div>
-                                    </div>
-                                    <span v-else class="badge bg-secondary-subtle text-secondary">Sin Contrato</span>
-                                </td>
-                                <td class="small text-muted">
-                                    <div v-if="c.telefono"><i class="fas fa-phone me-1"></i> {{ c.telefono }}</div>
-                                    <div v-if="c.email"><i class="fas fa-envelope me-1"></i> {{ c.email }}</div>
-                                    <div v-if="!c.telefono && !c.email" class="text-muted fst-italic">Sin contacto</div>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <button @click="cargarClienteParaEditar(c)"
-                                        class="btn btn-sm btn-light text-primary border">
-                                        Editar
-                                    </button>
-                                </td>
-                            </tr>
+                        <tbody id="clients-table-body">
+                            <!-- Injected by JS -->
                         </tbody>
                     </table>
                 </div>
@@ -54,97 +29,69 @@
 
         <!-- Form Panel -->
         <div class="col-md-4">
-            <div class="card h-100 border-0 shadow-sm" :class="modoEdicionCliente ? 'bg-primary-subtle' : 'bg-light'">
+            <div id="client-form-card" class="card h-100 border-0 shadow-sm bg-light">
                 <div class="card-header border-bottom-0 pt-4 px-4 bg-transparent">
-                    <h5 class="mb-0 fw-bold" :class="modoEdicionCliente ? 'text-primary' : 'text-dark'">
-                        <i class="fas fa-user-circle me-2"></i>{{ modoEdicionCliente ? 'Editar Cliente' : 'Nuevo
-                        Cliente' }}
+                    <h5 id="form-client-title" class="mb-0 fw-bold text-dark">
+                        <i class="fas fa-user-circle me-2"></i>Nuevo Cliente
                     </h5>
                 </div>
                 <div class="card-body px-4 pb-4">
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Nombre Empresa <span class="text-danger">*</span></label>
-                        <input type="text" v-model="formCliente.nombre" class="form-control" placeholder="Razón Social"
-                            required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">NIT / Identificación</label>
-                        <input type="text" v-model="formCliente.nit" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Teléfono <span class="text-danger">*</span></label>
-                        <input type="tel" v-model="formCliente.telefono" class="form-control"
-                            placeholder="+57 300 123 4567" required>
-                    </div>
+                    <form id="form-cliente">
+                        <input type="hidden" id="cli-id">
 
-                    <hr class="border-secondary-subtle my-4 opacity-50">
-                    <h6 class="text-secondary fw-bold mb-3 text-uppercase small letter-spacing-2">Condiciones Contrato
-                    </h6>
-
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Posiciones Contratadas</label>
-                        <input type="number" v-model.number="formCliente.posiciones" class="form-control">
-                    </div>
-
-                    <!-- NUEVO: Tipo de Pago -->
-                    <div class="mb-3">
-                        <label class="form-label text-muted">Tipo de Pago <span class="text-danger">*</span></label>
-                        <select v-model="formCliente.tipoPago" class="form-select">
-                            <option value="PREPAGO">Prepago - Contrato Mensual</option>
-                            <option value="POSTPAGO">Postpago - Pago al Retiro</option>
-                        </select>
-                        <div class="form-text small">
-                            Prepago: pago adelantado. Postpago: pago al retirar producto.
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Nombre Empresa <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" id="cli-nombre" class="form-control" placeholder="Razón Social" required>
                         </div>
-                    </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted">NIT / Identificación</label>
+                            <input type="text" id="cli-nit" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Teléfono <span class="text-danger">*</span></label>
+                            <input type="tel" id="cli-telefono" class="form-control" required>
+                        </div>
 
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label text-muted">Tarifa Mes</label>
-                            <input type="number" v-model.number="formCliente.precioPosicion" class="form-control">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted">Tarifa Exceso (Día)</label>
-                            <input type="number" v-model.number="formCliente.precioExceso" class="form-control">
-                        </div>
-                    </div>
+                        <hr class="border-secondary-subtle my-4 opacity-50">
+                        <h6 class="text-secondary fw-bold mb-3 text-uppercase small">Condiciones Contrato</h6>
 
-                    <!-- NUEVO: Campo condicional para POSTPAGO -->
-                    <div v-if="formCliente.tipoPago === 'POSTPAGO'" class="mt-3">
-                        <label class="form-label text-muted">Precio por Posición/Día <span
-                                class="text-danger">*</span></label>
-                        <input type="number" v-model.number="formCliente.precioDiaPosicion" class="form-control"
-                            placeholder="Ej: 1500">
-                        <div class="form-text small">
-                            Valor que se cobra por cada posición utilizada por día.
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Posiciones</label>
+                            <input type="number" id="cli-posiciones" class="form-control" value="10">
                         </div>
-                    </div>
 
-                    <!-- NUEVO: Alerts informativos -->
-                    <div class="mt-3">
-                        <div v-if="formCliente.tipoPago === 'PREPAGO'" class="alert alert-info small mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>Prepago:</strong> El cliente paga el costo de las posiciones contratadas al inicio
-                            del mes.
-                            Solo se cobran excedentes si usa más de lo contratado.
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Tipo de Pago <span class="text-danger">*</span></label>
+                            <select id="cli-tipoPago" class="form-select">
+                                <option value="PREPAGO">Prepago</option>
+                                <option value="POSTPAGO">Postpago</option>
+                            </select>
                         </div>
-                        <div v-else-if="formCliente.tipoPago === 'POSTPAGO'" class="alert alert-warning small mb-0">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>Postpago:</strong> El cliente paga solo cuando retira el producto.
-                            Se cobra cada posición utilizada multiplicada por los días de almacenamiento.
-                        </div>
-                    </div>
 
-                    <div class="mt-4 d-grid gap-2">
-                        <button @click="procesarCliente" class="btn fw-bold"
-                            :class="modoEdicionCliente ? 'btn-primary' : 'btn-dark'">
-                            {{ modoEdicionCliente ? 'Actualizar Datos' : 'Registrar Cliente' }}
-                        </button>
-                        <button v-if="modoEdicionCliente" @click="cancelarEdicionCliente"
-                            class="btn btn-outline-secondary btn-sm">
-                            Cancelar Edición
-                        </button>
-                    </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label text-muted">Tarifa Mes/Base</label>
+                                <input type="number" id="cli-precio" class="form-control" value="450000">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted">Tarifa Exceso</label>
+                                <input type="number" id="cli-exceso" class="form-control" value="85">
+                            </div>
+                        </div>
+
+                        <div id="field-precio-dia" class="mt-3 d-none">
+                            <label class="form-label text-muted">Precio Día/Pos <span
+                                    class="text-danger">*</span></label>
+                            <input type="number" id="cli-precioDia" class="form-control" placeholder="Ej: 1500">
+                        </div>
+
+                        <div class="mt-4 d-grid gap-2">
+                            <button type="submit" class="btn btn-dark fw-bold">Guardar</button>
+                            <button type="button" id="btn-cancel-edit"
+                                class="btn btn-outline-secondary btn-sm d-none">Cancelar</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

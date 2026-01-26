@@ -9,8 +9,10 @@
 
     try {
         if (typeof Vue === 'undefined') {
+            alert("FATAL: Vue.js is undefined!");
             throw new Error("Vue.js no se ha cargado. Verifique su conexión a internet o el CDN.");
         }
+        alert("DEBUG: Vue loaded. creating App...");
         const { createApp } = Vue;
 
         const app = createApp({
@@ -136,6 +138,26 @@
                     return Object.values(grupos).sort((a, b) => a.nombreProducto.localeCompare(b.nombreProducto));
                 }
             },
+            watch: {
+                // --- IMPLEMENTACIÓN DEL ENRUTADOR (ROUTER) ---
+                vista(nuevaVista) {
+                    console.log("Navegando a:", nuevaVista);
+                    switch (nuevaVista) {
+                        case 'dashboard':
+                            this.cargarDashboard();
+                            break;
+                        case 'movimientos':
+                            this.cargarHistorial();
+                            break;
+                        case 'salida':
+                            if (this.formSalida.idCliente) this.cargarInventario();
+                            break;
+                        case 'productos':
+                            this.recargarDatos(); // Refrescar catálogos
+                            break;
+                    }
+                }
+            },
             methods: {
                 // ==========================================
                 // 1. INICIALIZACIÓN Y CARGA DE DATOS
@@ -201,6 +223,8 @@
                     google.script.run
                         .withSuccessHandler(res => {
                             this.loading = false;
+                            // FIX: Controller ya devuelve objeto, no necesitamos JSON.parse
+
                             if (res.success) {
                                 this.dashboardData = res;
                             } else {
@@ -712,7 +736,11 @@
                 }
             },
             mounted() { this.iniciarApp(); }
-        }).mount('#app');
+        });
+
+        alert("DEBUG: App created. Mounting...");
+        app.mount('#app');
+        alert("DEBUG: App Mounted!");
     } catch (e) {
         alert("CRITICAL ERROR Starting App: " + e.message + "\n" + e.stack);
     }
