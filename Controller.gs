@@ -641,7 +641,8 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     diasConExcedente: diasConExcedente,
     totalPagar: costoBaseTotal + costoExcedenteTotal,
     detalleDiario: detalle,
-    tipoPago: contrato.tipoPago 
+    tipoPago: contrato.tipoPago,
+    contrato: contrato
   };
   } catch (e) {
      Logger.log("Error apiCalcularFacturacion: " + e);

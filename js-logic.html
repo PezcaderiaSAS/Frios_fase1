@@ -50,34 +50,58 @@
     // ======================================================
 
     // --- PRODUCTOS ---
+    // --- PRODUCTOS ---
     function initProducts() {
         const tbody = document.getElementById('products-table-body');
         const loader = document.getElementById('loading-products');
         const container = document.getElementById('products-container');
         const btnRefresh = document.getElementById('btn-refresh-products');
-        if (btnRefresh) btnRefresh.onclick = initProducts;
+        const filterCli = document.getElementById('filter-products-client');
 
-        google.script.run.withSuccessHandler(data => {
-            GLOBAL_STATE.productos = data;
-            let html = '';
-            if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
-            else {
-                data.forEach(p => {
-                    const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
-                    html += `<tr>
-                      <td class="ps-4 font-monospace small text-muted">${p.id}</td>
-                      <td class="fw-bold text-dark">${p.nombre}</td>
-                      <td><span class="badge bg-light text-dark border fw-normal">${p.idCliente}</span></td>
-                      <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
-                      <td class="text-end font-monospace">${p.stockCajas}</td>
-                      <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
-                  </tr>`;
-                });
-            }
-            tbody.innerHTML = html;
-            loader.classList.add('d-none');
-            container.classList.remove('d-none');
-        }).apiGetProductosConStock();
+        // Load Clients for Filter
+        google.script.run.withSuccessHandler(clientes => {
+            let opts = '<option value="">Todos los Clientes</option>';
+            clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
+            // Preserve selection if reloaded
+            const current = filterCli.value;
+            filterCli.innerHTML = opts;
+            if (current) filterCli.value = current;
+        }).apiGetClientes();
+
+        function loadData() {
+            const idCliente = filterCli.value; // Get selected value (or empty)
+            loader.classList.remove('d-none');
+            container.classList.add('d-none');
+
+            google.script.run.withSuccessHandler(data => {
+                GLOBAL_STATE.productos = data;
+                let html = '';
+                if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
+                else {
+                    data.forEach(p => {
+                        const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
+                        html += `<tr>
+                          <td class="ps-4 font-monospace small text-muted">${p.id}</td>
+                          <td class="fw-bold text-dark">${p.nombre}</td>
+                          <td><span class="badge bg-light text-dark border fw-normal">${p.idCliente}</span></td>
+                          <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
+                          <td class="text-end font-monospace">${p.stockCajas}</td>
+                          <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
+                      </tr>`;
+                    });
+                }
+                tbody.innerHTML = html;
+                loader.classList.add('d-none');
+                container.classList.remove('d-none');
+            }).apiGetProductosConStock(idCliente);
+        }
+
+        // Event Listeners
+        if (btnRefresh) btnRefresh.onclick = loadData;
+        if (filterCli) filterCli.onchange = loadData;
+
+        // Initial Load
+        loadData();
     }
 
     // --- DASHBOARD ---
@@ -111,10 +135,49 @@
             google.script.run.withSuccessHandler(res => {
                 loader.classList.add('d-none');
                 if (res.success) {
+                    const pct = res.ocupacion.porcentaje;
+                    const elPct = document.getElementById('dash-porcentaje');
+                    const elRing = elPct.parentElement.parentElement;
+                    const numTotal = document.getElementById('dash-peso-total');
+
+                    // Reset Classes
+                    elPct.className = 'display-4 fw-bold mb-0 lh-1';
+                    elRing.className = 'position-relative d-inline-flex align-items-center justify-content-center rounded-circle';
+
+                    // Color Logic
+                    let colorClass = 'text-primary';
+                    let ringClass = 'bg-light';
+
+                    if (pct >= 100) {
+                        colorClass = 'text-danger';
+                        ringClass = 'bg-danger-subtle text-danger';
+                    } else if (pct >= 80) {
+                        colorClass = 'text-warning';
+                        ringClass = 'bg-warning-subtle text-warning-emphasis';
+                    } else {
+                        colorClass = 'text-success'; // Positive vibe
+                        ringClass = 'bg-success-subtle text-success';
+                    }
+
+                    numTotal.className = `display-4 fw-bold ${colorClass} mb-0 lh-1`;
+                    elRing.className = `${ringClass} position-relative d-inline-flex align-items-center justify-content-center rounded-circle`;
+                    elPct.className = `fw-bold ${colorClass}`; // Inner text
+
                     document.getElementById('dash-peso-total').textContent = res.ocupacion.pesoTotal.toFixed(0);
-                    document.getElementById('dash-porcentaje').textContent = res.ocupacion.porcentaje.toFixed(0);
+                    document.getElementById('dash-porcentaje').textContent = pct.toFixed(0);
                     document.getElementById('dash-pos-usadas').textContent = res.ocupacion.posicionesUsadas.toFixed(1);
                     document.getElementById('dash-pos-contrato').textContent = res.contrato.posiciones;
+
+                    // Alert check
+                    const alert = document.getElementById('dash-alert-exceso');
+                    if (pct >= 100) {
+                        alert.classList.remove('d-none');
+                        alert.classList.add('d-flex');
+                        document.getElementById('dash-exceso-msg').textContent = `Uso actual: ${pct.toFixed(1)}%. Se aplicará tarifa de excedente.`;
+                    } else {
+                        alert.classList.add('d-none');
+                        alert.classList.remove('d-flex');
+                    }
 
                     const tbody = document.getElementById('dash-historial-body');
                     let html = '';
@@ -281,9 +344,37 @@
             document.getElementById('entrada-total-peso').textContent = p.toFixed(2) + ' Kg';
         }
 
+        // --- TOAST HELPER ---
+        function showToast(message, type = 'primary') {
+            const container = document.getElementById('toast-container');
+            const id = 'toast-' + Math.random().toString(36).substr(2, 9);
+            const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            const color = type === 'success' ? 'text-success' : (type === 'danger' ? 'text-danger' : 'text-primary');
+
+            const html = `
+        <div id="${id}" class="toast align-items-center border-0 shadow-lg mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fw-bold ${color}">
+                    <i class="fas ${icon} me-2"></i> ${message}
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>`;
+
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            container.appendChild(wrapper.firstElementChild);
+
+            const el = document.getElementById(id);
+            const toast = new bootstrap.Toast(el, { delay: 4000 });
+            toast.show();
+
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        }
+
         function saveEntrada() {
             const idCli = selectCli.value;
-            if (!idCli) return alert("Seleccione Cliente");
+            if (!idCli) return showToast("Seleccione Cliente", 'danger');
 
             const rows = [];
             document.querySelectorAll('#entrada-tbody tr').forEach(tr => {
@@ -293,7 +384,7 @@
                 const v = tr.querySelector('.fecha-venc').value;
                 if (pid && c > 0 && p > 0) rows.push({ idProducto: pid, cantidadCajas: c, pesoKg: p, fechaVencimiento: v, lote: 0 });
             });
-            if (rows.length === 0) return alert("Ingrese items validos");
+            if (rows.length === 0) return showToast("Ingrese items validos", 'danger');
 
             const pay = {
                 tipo: 'ENTRADA',
@@ -306,15 +397,21 @@
                 productos: rows
             };
 
-            btnSave.disabled = true; btnSave.textContent = 'Guardando...';
+            btnSave.disabled = true;
+            const originalText = btnSave.innerHTML;
+            btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+            showToast("Procesando entrada...", 'primary');
+
             google.script.run.withSuccessHandler(res => {
-                btnSave.disabled = false; btnSave.textContent = 'Guardar Entrada';
+                btnSave.disabled = false; btnSave.innerHTML = originalText;
                 if (res.success) {
-                    alert("Éxito ID: " + res.id);
+                    showToast(`Entrada ${res.id} guardada exitosamente`, 'success');
                     if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
                     tbody.innerHTML = ''; addItemRow();
                     document.getElementById('entrada-doc').value = ''; updateTotal();
-                } else alert(res.error);
+                } else {
+                    showToast("Error: " + res.error, 'danger');
+                }
             }).apiGuardarMovimiento(pay);
         }
     }
@@ -496,14 +593,20 @@
         };
     }
 
-    // --- VISTA: BILLING ---
+    // --- VISTA: BILLING (UPDATED) ---
     function initBilling() {
         const selCli = document.getElementById('bill-cliente');
         const dateIn = document.getElementById('bill-inicio');
         const dateOut = document.getElementById('bill-fin');
         const btnCalc = document.getElementById('bill-btn-calc');
+
+        const btnPdfBrief = document.getElementById('bill-btn-pdf-brief');
+        const btnPdfDetail = document.getElementById('bill-btn-pdf-detail');
+
         const loader = document.getElementById('bill-loading');
         const results = document.getElementById('bill-results');
+
+        let currentResult = null; // Store for PDF generation
 
         google.script.run.withSuccessHandler(c => {
             let opts = '<option value="" disabled selected>Seleccione...</option>';
@@ -521,12 +624,22 @@
             loader.classList.remove('d-none');
             btnCalc.disabled = true;
 
-            const req = { idCliente: selCli.value, inicio: dateIn.value, fin: dateOut.value };
-
+            // Call specific Billing API - CORRECTION: Name is apiCalcularFacturacion
             google.script.run.withSuccessHandler(res => {
                 loader.classList.add('d-none');
                 btnCalc.disabled = false;
-                if (!res.success) return alert("Error/Sin datos");
+                if (!res.success) return alert("Error/Sin datos: " + (res.error || ""));
+
+                currentResult = res; // Save for PDF
+                const clienteNombre = selCli.options[selCli.selectedIndex].text;
+                currentResult.cliente = { id: selCli.value, nombre: clienteNombre }; // Add context
+                currentResult.periodo = { inicio: dateIn.value, fin: dateOut.value };
+                currentResult.metricas = {
+                    dias: res.dias,
+                    costoBase: res.costoBase,
+                    costoExcedente: res.costoExcedente,
+                    totalPagar: res.totalPagar
+                };
 
                 document.getElementById('bill-kpi-dias').textContent = res.dias;
                 document.getElementById('bill-kpi-base').textContent = '$' + res.costoBase.toLocaleString();
@@ -562,7 +675,34 @@
                 tbody.innerHTML = html;
                 results.classList.remove('d-none');
 
-            }).apiGenerarFacturacion(req);
+            }).apiCalcularFacturacion(selCli.value, dateIn.value, dateOut.value);
+        };
+
+        // PDF Handlers
+        if (btnPdfBrief) btnPdfBrief.onclick = () => {
+            if (!currentResult) return;
+            const btn = btnPdfBrief;
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+            google.script.run.withSuccessHandler(res => {
+                btn.disabled = false; btn.innerHTML = originalText;
+                if (res.success && res.pdfUrl) window.open(res.pdfUrl, '_blank');
+                else alert("Error PDF: " + (res.error || "Desconocido"));
+            }).apiGenerarPDFFacturaResumen(currentResult);
+        };
+
+        if (btnPdfDetail) btnPdfDetail.onclick = () => {
+            if (!currentResult) return;
+            const btn = btnPdfDetail;
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+            google.script.run.withSuccessHandler(res => {
+                btn.disabled = false; btn.innerHTML = originalText;
+                if (res.success && res.pdfUrl) window.open(res.pdfUrl, '_blank');
+                else alert("Error PDF: " + (res.error || "Desconocido"));
+            }).apiGenerarPDFFacturaDetallada(currentResult);
         };
     }
 </script>

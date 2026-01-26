@@ -88,6 +88,19 @@ function registrarMovimiento(data) {
        });
     }
     
+    // 0. VALIDACIÓN DE INTEGRIDAD REFERENCIAL (Trust no one)
+    // ss ya está definido arriba
+    const prodSheet = ss.getSheetByName('DIM_PRODUCTOS');
+    const existingProds = new Set(prodSheet.getRange(2, 1, prodSheet.getLastRow()-1, 1).getValues().flat().map(String));
+    
+    for (let p of data.productos) {
+        if (!existingProds.has(String(p.idProducto))) {
+             throw new Error(`Integridad Violada: El producto ${p.idProducto} no existe en la base de datos.`);
+        }
+    }
+
+    // (headerSheet y detailSheet ya definidos arriba)
+    
     // 1. Generar ID Único
     const prefix = data.tipo === 'ENTRADA' ? 'MOV-IN-' : 'MOV-OUT-';
     const idMovimiento = generateNextId('MOV_HEADER', prefix);
