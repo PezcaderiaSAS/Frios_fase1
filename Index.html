@@ -13,73 +13,102 @@
 <body class="d-flex flex-column min-vh-100">
     <div id="app" class="flex-grow-1 d-flex flex-column">
 
-        <!-- Navbar -->
-        <nav class="navbar navbar-expand-lg sticky-top shadow-sm">
+        <!-- Navbar Glassmorphic -->
+        <nav class="navbar navbar-expand-lg sticky-top py-3">
             <div class="container-xl">
-                <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-                    <div class="bg-dark text-white rounded p-1 d-flex align-items-center justify-content-center"
-                        style="width: 32px; height: 32px;">
-                        <i class="fas fa-snowflake"></i>
-                    </div>
-                    <div style="line-height: 1;">
-                        <div class="fw-bold fs-6 text-dark tracking-tight">ColdChain</div>
-                        <div class="text-uppercase text-muted" style="font-size: 0.6rem; letter-spacing: 2px;">
-                            Enterprise WMS</div>
-                    </div>
-                </a>
+                <div class="glass-panel d-flex align-items-center justify-content-between p-2 w-100 px-3">
 
-                <div class="d-none d-md-flex gap-1 bg-light p-1 rounded-3 border">
-                    <button @click="vista='dashboard'" :class="['nav-link', vista==='dashboard' ? 'active' : '']">
-                        <i class="fas fa-chart-pie me-1"></i> Dashboard
-                    </button>
-                    <div class="vr my-auto opacity-25"></div>
-                    <button @click="vista='entrada'" :class="['nav-link', vista==='entrada' ? 'active' : '']">
-                        <i class="fas fa-arrow-down text-success me-1"></i> Entrada
-                    </button>
-                    <button @click="vista='salida'" :class="['nav-link', vista==='salida' ? 'active' : '']">
-                        <i class="fas fa-arrow-up text-warning me-1"></i> Salida
-                    </button>
-                    <div class="vr my-auto opacity-25"></div>
-                    <button @click="vista='productos'" :class="['nav-link', vista==='productos' ? 'active' : '']">
-                        Inventario
-                    </button>
-                    <button @click="vista='clientes'" :class="['nav-link', vista==='clientes' ? 'active' : '']">
-                        Clientes
-                    </button>
-                    <div class="vr my-auto opacity-25"></div>
-                    <button @click="{ vista='movimientos'; cargarHistorial(); }"
-                        :class="['nav-link', vista==='movimientos' ? 'active' : '']" title="Historial">
-                        <i class="fas fa-history text-secondary"></i>
-                    </button>
-                    <button @click="vista='billing'" :class="['nav-link', vista==='billing' ? 'active' : '']"
-                        title="Facturación">
-                        <i class="fas fa-file-invoice-dollar text-secondary"></i>
-                    </button>
-                    <div class="vr my-auto opacity-25"></div>
-                    <button @click="vista='config'" :class="['nav-link', vista==='config' ? 'active' : '']"
-                        title="Configuración">
-                        <i class="fas fa-cog text-secondary"></i>
-                    </button>
-                </div>
+                    <!-- Brand -->
+                    <a class="navbar-brand d-flex align-items-center gap-3" href="#">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-lg"
+                            style="width: 42px; height: 42px; background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                            <i class="fas fa-snowflake fa-lg"></i>
+                        </div>
+                        <div class="d-flex flex-column" style="line-height: 1;">
+                            <span class="fw-bold fs-5 text-dark tracking-tight">ColdChain</span>
+                            <span class="text-uppercase text-muted" style="font-size: 0.65rem; letter-spacing: 2px;">Pro
+                                WMS</span>
+                        </div>
+                    </a>
 
-                <div class="d-flex align-items-center">
-                    <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center border border-primary-subtle"
-                        style="width: 32px; height: 32px; font-size: 0.75rem;">
-                        U
+                    <!-- Navigation Pills -->
+                    <div class="d-none d-md-flex align-items-center gap-2">
+                        <button @click="vista='dashboard'"
+                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='dashboard' ? 'btn-primary shadow-md' : 'btn-light text-secondary bg-transparent']">
+                            <i class="fas fa-chart-pie"></i> Dashboard
+                        </button>
+
+                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
+
+                        <button @click="vista='entrada'"
+                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='entrada' ? 'btn-success text-white shadow-md' : 'btn-light text-secondary bg-transparent']">
+                            <i class="fas fa-arrow-down" :class="vista!=='entrada' ? 'text-success' : 'text-white'"></i>
+                            Entrada
+                        </button>
+
+                        <button @click="vista='salida'"
+                            :class="['btn btn-sm border-0 d-flex align-items-center gap-2', vista==='salida' ? 'btn-warning text-white shadow-md' : 'btn-light text-secondary bg-transparent']">
+                            <i class="fas fa-arrow-up" :class="vista!=='salida' ? 'text-warning' : 'text-white'"></i>
+                            Salida
+                        </button>
+
+                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
+
+                        <button @click="vista='productos'"
+                            :class="['btn btn-sm border-0', vista==='productos' ? 'bg-white text-primary shadow-sm fw-bold' : 'text-secondary bg-transparent hover-effect']">
+                            Inventario
+                        </button>
+
+                        <button @click="vista='clientes'"
+                            :class="['btn btn-sm border-0', vista==='clientes' ? 'bg-white text-primary shadow-sm fw-bold' : 'text-secondary bg-transparent hover-effect']">
+                            Clientes
+                        </button>
+
+                        <div class="vr my-auto opacity-25 mx-2" style="height: 20px;"></div>
+
+                        <div class="d-flex gap-1">
+                            <button @click="{ vista='movimientos'; cargarHistorial(); }" title="Historial"
+                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='movimientos' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
+                                style="width: 32px; height: 32px;">
+                                <i class="fas fa-history"></i>
+                            </button>
+
+                            <button @click="vista='billing'" title="Facturación"
+                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='billing' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
+                                style="width: 32px; height: 32px;">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </button>
+
+                            <button @click="vista='config'" title="Configuración"
+                                :class="['btn btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center', vista==='config' ? 'bg-white text-primary shadow-sm' : 'text-secondary bg-transparent']"
+                                style="width: 32px; height: 32px;">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- User Profile -->
+                    <div class="d-flex align-items-center ps-3 border-start border-light border-opacity-50">
+                        <div class="rounded-circle bg-primary-subtle text-primary fw-bold d-flex align-items-center justify-content-center shadow-sm"
+                            style="width: 36px; height: 36px; font-size: 0.85rem;">
+                            U
+                        </div>
                     </div>
                 </div>
             </div>
         </nav>
 
         <!-- Main Content -->
-        <main class="container-xl py-4 flex-grow-1">
+        <main class="container-xl py-3 flex-grow-1">
 
-            <!-- Loader Global -->
+            <!-- Loader Global Modern -->
             <transition name="fade">
-                <div v-if="loading" class="loader-overlay">
-                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <div v-if="loading" class="loader-overlay flex-column gap-3">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                    <div
+                        class="glass-panel px-4 py-2 text-primary fw-bold text-uppercase text-xs tracking-wider shadow-sm">
+                        {{ mensajeCarga || 'Procesando...' }}
                     </div>
-                    <p class="text-muted fw-bold small text-uppercase letter-spacing-2">{{ mensajeCarga }}</p>
                 </div>
             </transition>
 

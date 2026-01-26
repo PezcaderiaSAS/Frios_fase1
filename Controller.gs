@@ -25,13 +25,24 @@ function apiGetDashboardData(idCliente) {
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     
-    // A. Obtener Contrato Activo
+    // Lectura en bloque para minimizar I/O
     const sheetContratos = ss.getSheetByName('DIM_CONTRATOS');
-    let contrato = { posiciones: 0, factor: 800 }; // Default
+    const sheetHeader = ss.getSheetByName('MOV_HEADER');
+    const sheetDetail = ss.getSheetByName('MOV_DETAIL');
     
-    if (sheetContratos && sheetContratos.getLastRow() > 1) {
-      const contratos = sheetContratos.getDataRange().getValues();
-      const contratoEncontrado = contratos.find(r => String(r[1]) === String(idCliente) && r[7] === 'ACTIVO');
+    const [dataContratos, dataHeader, dataDetail] = [
+      sheetContratos ? sheetContratos.getDataRange().getValues() : [],
+      sheetHeader ? sheetHeader.getDataRange().getValues() : [],
+      sheetDetail ? sheetDetail.getDataRange().getValues() : []
+    ];
+
+    // A. Obtener Contrato Activo
+    let contrato = { posiciones: 0, factor: 800 }; 
+    if (dataContratos.length > 1) {
+      // dataContratos es [ID, ID_CLI, POS, FACTOR, PRECIO, EXC, FECHA, ESTADO, TIPO, PRECIO_DIA]
+      const contratoEncontrado = dataContratos.slice(1).find(r => 
+        String(r[1]) === String(idCliente) && r[7] === 'ACTIVO'
+      );
       if (contratoEncontrado) {
         contrato = { 
           posiciones: Number(contratoEncontrado[2]) || 0, 
@@ -40,21 +51,35 @@ function apiGetDashboardData(idCliente) {
       }
     }
 
-    // B. Calcular Ocupación Actual (Usando la función reparada abajo)
-    const inventario = apiGetInventarioCliente(idCliente);
-    const pesoTotal = inventario.reduce((sum, item) => sum + (Number(item.peso) || 0), 0);
+    // B. Calcular Ocupación Actual (Optimizado: Suma Directa)
+    // 1. Identificar IDs de movimientos del cliente
+    const movsCliente = new Set();
+    const headersCliente = [];
     
-    // C. Obtener Historial (Últimos 10 movimientos)
-    const sheetHeader = ss.getSheetByName('MOV_HEADER');
-    let ultimosMovimientos = [];
+    // Empezamos desde 1 para saltar header
+    for (let i = 1; i < dataHeader.length; i++) {
+        const r = dataHeader[i];
+        if (String(r[3]) === String(idCliente)) {
+            movsCliente.add(r[0]); // ID Movimiento
+            headersCliente.push(r); // Guardar para historial
+        }
+    }
+
+    // 2. Sumar detalles asociados
+    let pesoTotal = 0;
+    // Empezamos desde 1 para saltar header
+    for (let i = 1; i < dataDetail.length; i++) {
+        const r = dataDetail[i];
+        // r[1] es ID Movimiento, r[7] es Peso
+        if (movsCliente.has(r[1])) {
+            pesoTotal += (Number(r[7]) || 0);
+        }
+    }
     
-    if (sheetHeader && sheetHeader.getLastRow() > 1) {
-      const lastRow = sheetHeader.getLastRow();
-      const startRow = Math.max(2, lastRow - 19); // Mirar ultimas 20 filas
-      const dataRows = sheetHeader.getRange(startRow, 1, lastRow - startRow + 1, 9).getValues();
-      
-      ultimosMovimientos = dataRows
-        .filter(r => String(r[3]) === String(idCliente)) // Filtrar por cliente
+    // C. Obtener Historial (Usando los headers ya filtrados)
+    // Ordenar por ID inverso o Fecha inversa (Asumimos ID incremental o fecha similar)
+    // headersCliente es [ID, TIPO, FECHA, CLI, REF, CAJAS, PESO, URL]
+    const ultimosMovimientos = headersCliente
         .reverse()
         .slice(0, 10)
         .map(r => ({
@@ -65,7 +90,6 @@ function apiGetDashboardData(idCliente) {
           totalPeso: Number(r[6]).toFixed(2),
           url: String(r[7])
         }));
-    }
 
     return {
       success: true,
@@ -139,8 +163,27 @@ function apiGetInventarioCliente(idCliente) {
     }
   });
 
-  // Filtrar solo lo que tiene existencia positiva (> 0.01)
-  return Object.values(inventario).filter(item => item.peso > 0.01);
+  // Filtrar solo lo que tiene existencia positiva (> 0.01) y ordenar FIFO
+  return Object.values(inventario)
+    .filter(item => item.peso > 0.01)
+    .sort((a, b) => {
+        // Orden principal: Nombre Producto (Alfabetico)
+        if (a.nombreProducto < b.nombreProducto) return -1;
+        if (a.nombreProducto > b.nombreProducto) return 1;
+        
+        // Orden secundario: Lote (Numérico Ascendente) -> FIFO
+        // Intentar parsear lote a numero para orden correcto (1, 2, 10 vs 1, 10, 2)
+        const loteA = parseInt(a.lote, 10);
+        const loteB = parseInt(b.lote, 10);
+        
+        if (!isNaN(loteA) && !isNaN(loteB)) {
+             return loteA - loteB;
+        }
+        // Fallback para lotes alfanumericos viejos
+        if (String(a.lote) < String(b.lote)) return -1;
+        if (String(a.lote) > String(b.lote)) return 1;
+        return 0;
+    });
 }
 
 // ======================================================
@@ -452,16 +495,17 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   if (!cliente || !cliente.contratoInfo) throw new Error("Cliente no tiene contrato activo.");
   
   const contrato = cliente.contratoInfo;
-  // contrato = { posiciones, precio, exceso, tipoPago, precioDiaPosicion }
   
   // 2. Obtener Historial Completo para reconstruir saldos
   const headers = ss.getSheetByName('MOV_HEADER').getDataRange().getValues();
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
   
-  // Filtrar movimientos del cliente y parsear fechas
-  const movs = [];
-  const mapMovFecha = {}; // ID -> Fecha (timestamp 00:00)
+  // MAPA DE CAMBIOS POR FECHA PARA O(1) LOOKUP
+  // mapCambios[timestamp_midnight] = delta_peso
+  const mapCambios = new Map();
   
+  // Pre-procesar movimientos (Header)
+  const mapMovFecha = {};
   headers.slice(1).forEach(r => {
     if (String(r[3]) === String(idCliente)) {
       const d = new Date(r[2]);
@@ -470,91 +514,87 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     }
   });
   
-  // Detalles con fecha y peso
+  // Pre-procesar detalles para llenar Mapa
   details.slice(1).forEach(r => {
     const idMov = r[1];
-    if (mapMovFecha[idMov]) {
-      let peso = Number(r[7]); 
-      
-      movs.push({
-        fecha: mapMovFecha[idMov],
-        peso: peso
-      });
+    const fechaMs = mapMovFecha[idMov];
+    
+    if (fechaMs !== undefined) { // Solo si es del cliente
+      const peso = Number(r[7] || 0); 
+      // Acumular cambio en esa fecha
+      const actual = mapCambios.get(fechaMs) || 0;
+      mapCambios.set(fechaMs, actual + peso);
     }
   });
 
-  // Ordenar por fecha
-  movs.sort((a, b) => a.fecha - b.fecha);
-
-  // 3. Simulación Día a Día
+  // 3. Simulación Día a Día (Optimizada)
   const start = new Date(fechaInicio); start.setHours(0,0,0,0);
   const end = new Date(fechaFin); end.setHours(0,0,0,0);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
   
+  // A. Calcular saldo inicial (Todo lo anterior al inicio)
   let saldoKg = 0;
-  // Calcular saldo inicial (sumar todo lo previo a start)
-  movs.forEach(m => {
-    if (m.fecha < start.getTime()) {
-      saldoKg += m.peso;
+  for (const [fechaMs, deltaPeso] of mapCambios) {
+    if (fechaMs < startMs) {
+      saldoKg += deltaPeso;
     }
-  });
+  }
 
   const detalle = [];
   let costoBaseTotal = 0;
   let costoExcedenteTotal = 0;
   let diasConExcedente = 0;
 
-  // Iterar día por día
+  // B. Bucle principal (Solo itera los días del rango)
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const todayMs = d.getTime();
     
-    // Aplicar movimientos de "hoy"
-    movs.forEach(m => {
-      if (m.fecha === todayMs) {
-        saldoKg += m.peso;
-      }
-    });
+    // Aplicar cambios del día (O(1))
+    if (mapCambios.has(todayMs)) {
+      saldoKg += mapCambios.get(todayMs);
+    }
     
-    // Cálculos
-    const posUsadas = saldoKg / 800; // Factor 800 estandar
-    const excedente = Math.max(0, posUsadas - contrato.posiciones);
+    // Evitar saldos negativos por errores de datos
+    const stockDia = Math.max(0, saldoKg);
     
-    // NUEVO: Calcular excedente en KILOGRAMOS para cobro
-    const excedenteKg = Math.max(0, saldoKg - (contrato.posiciones * 800));
+    // Cálculos de Negocio
+    const posUsadas = stockDia / 800; // Factor 800
+    const excedentePos = Math.max(0, posUsadas - contrato.posiciones);
     
-    // NUEVA LÓGICA: Costos según TIPO_PAGO
+    // Excedente en Kilogramos
+    const excedenteKg = Math.max(0, stockDia - (contrato.posiciones * 800));
+    
     let costoBaseDia = 0;
     let costoExcDia = 0;
     
     if (contrato.tipoPago === 'PREPAGO') {
-      // PREPAGO: Pago adelantado mensual + excedentes
-      costoBaseDia = (contrato.precio / 30); // Precio Mes / 30
-      // CORREGIDO: Cobrar por KILOGRAMOS excedentes, no por posiciones
+      costoBaseDia = (contrato.precio / 30);
       costoExcDia = excedenteKg * contrato.exceso;
     } else {
-      // POSTPAGO: Pago por uso completo (todas las posiciones usadas)
+      // POSTPAGO
       costoBaseDia = posUsadas * contrato.precioDiaPosicion;
-      costoExcDia = 0; // No hay concepto de excedente en postpago
+      costoExcDia = 0; 
     }
     
     const totalDia = costoBaseDia + costoExcDia;
     
     costoBaseTotal += costoBaseDia;
     costoExcedenteTotal += costoExcDia;
-    if (excedente > 0 && contrato.tipoPago === 'PREPAGO') diasConExcedente++;
+    if (excedentePos > 0 && contrato.tipoPago === 'PREPAGO') diasConExcedente++;
 
     detalle.push({
-      fecha: new Date(d).toISOString(), // Para enviar a frontend
-      stockKg: Math.max(0, saldoKg),
-      posUsadas: Math.max(0, posUsadas),
+      fecha: new Date(d).toISOString(),
+      stockKg: stockDia,
+      posUsadas: posUsadas,
       posContratadas: contrato.posiciones,
-      excedente: contrato.tipoPago === 'PREPAGO' ? excedente : 0, // En posiciones (para UI)
-      excedenteKg: contrato.tipoPago === 'PREPAGO' ? excedenteKg : 0, // NUEVO: En kilogramos
+      excedente: contrato.tipoPago === 'PREPAGO' ? excedentePos : 0,
+      excedenteKg: contrato.tipoPago === 'PREPAGO' ? excedenteKg : 0,
       costoDia: totalDia,
-      tipoCobro: contrato.tipoPago // NUEVO: Identificar tipo en detalle
+      tipoCobro: contrato.tipoPago
     });
   }
 
-  // Resultado Final
   return {
     success: true,
     dias: detalle.length,
@@ -563,7 +603,7 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     diasConExcedente: diasConExcedente,
     totalPagar: costoBaseTotal + costoExcedenteTotal,
     detalleDiario: detalle,
-    tipoPago: contrato.tipoPago // NUEVO: Para identificar en frontend
+    tipoPago: contrato.tipoPago 
   };
 }
 

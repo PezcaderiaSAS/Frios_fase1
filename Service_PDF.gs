@@ -7,13 +7,22 @@ function generarReciboPDF(idMovimiento, datosMovimiento) {
     const template = HtmlService.createTemplateFromFile('receipt-template');
     template.data = datosMovimiento; // Pasar datos al HTML
     
-    // 2. Convertir a Blob (PDF)
+    // 2. Prepare descriptive filename
+    const tipo = datosMovimiento.tipo ? datosMovimiento.tipo.toUpperCase() : 'MOV';
+    const cliente = (datosMovimiento.cliente || 'CLIENTE').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+    const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const id = idMovimiento || 'NUL';
+    
+    // Format: RECIBO-ENTRADA-CARNES_SAS-20260124-1050.pdf
+    const filename = `RECIBO-${tipo}-${cliente}-${fecha}-${id}.pdf`;
+
+    // 3. Convert to Blob (PDF)
     const htmlContent = template.evaluate().getContent();
     const blob = Utilities.newBlob(htmlContent, MimeType.HTML)
                           .getAs(MimeType.PDF)
-                          .setName(`Recibo_${idMovimiento}.pdf`);
+                          .setName(filename);
     
-    // 3. Guardar en el Folder específico según el tipo
+    // 4. Guardar en el Folder específico según el tipo
     const folderId = datosMovimiento.tipo === 'ENTRADA' 
         ? CONFIG.RECEIPTS_FOLDER_IN_ID 
         : CONFIG.RECEIPTS_FOLDER_OUT_ID;

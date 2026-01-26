@@ -49,6 +49,45 @@ function registrarMovimiento(data) {
     const headerSheet = ss.getSheetByName('MOV_HEADER');
     const detailSheet = ss.getSheetByName('MOV_DETAIL');
     
+    // 0. AUTOGENERACIÓN DE LOTES (Solo ENTRADA)
+    // Se ignora el lote que venga del frontend y se calcula el siguiente consecutivo
+    if (data.tipo === 'ENTRADA') {
+       const allDetails = detailSheet.getDataRange().getValues();
+       // Mapa para rastrear el último lote por Producto
+       const maxLotePorProducto = {};
+       
+       // Barrido para encontrar máximos actuales
+       // Estructura DETAIL: [ID_DETALLE, ID_MOV, ID_PROD, LOTE, ...]
+       // Saltamos header (fila 0)
+       for (let i = 1; i < allDetails.length; i++) {
+         const row = allDetails[i];
+         const pId = String(row[2]);
+         const loteRaw = row[3];
+         
+         // Intentar parsear como entero
+         if (pId && loteRaw) {
+           const loteNum = parseInt(loteRaw, 10);
+           if (!isNaN(loteNum)) {
+             if (!maxLotePorProducto[pId] || loteNum > maxLotePorProducto[pId]) {
+               maxLotePorProducto[pId] = loteNum;
+             }
+           }
+         }
+       }
+       
+       // Asignar nuevos lotes a los productos entrantes
+       data.productos.forEach(p => {
+         const pId = String(p.idProducto);
+         const currentMax = maxLotePorProducto[pId] || 0;
+         const nextLote = currentMax + 1;
+         
+         p.lote = nextLote; // ASIGNACIÓN FORZADA
+         
+         // Actualizar mapa por si el mismo producto viene varias veces en este payload
+         maxLotePorProducto[pId] = nextLote;
+       });
+    }
+    
     // 1. Generar ID Único
     const prefix = data.tipo === 'ENTRADA' ? 'MOV-IN-' : 'MOV-OUT-';
     const idMovimiento = generateNextId('MOV_HEADER', prefix);
@@ -87,9 +126,8 @@ function registrarMovimiento(data) {
         
         // NUEVO: Calcular stock restante por producto/lote
         data.productos.forEach(producto => {
-            const key = producto.idProducto + '|' + producto.lote;
             const itemEnInventario = inventarioActual.find(inv => 
-                inv.idProducto === producto.idProducto && inv.lote === producto.lote
+                inv.idProducto === producto.idProducto && String(inv.lote) === String(producto.lote)
             );
             
             let stockRestante = 0;

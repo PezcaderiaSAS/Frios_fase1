@@ -2,251 +2,74 @@
 <html>
 
 <head>
+    <?!= HtmlService.createHtmlOutputFromFile('style-pdf').getContent(); ?>
     <style>
         @page {
+            /* Keep A5 for receipts to save paper */
             size: A5 portrait;
             margin: 0;
         }
 
+        /* Adjustments for A5 size */
         body {
-            font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            color: #1a1a1a;
-            margin: 0;
-            padding: 18px 24px;
-            font-size: 14px;
-            /* +4px: 10 → 14 */
-            line-height: 1.5;
-            background: #ffffff;
+            padding: 16px 20px;
+            font-size: 12px;
         }
 
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-            border-bottom: 3px solid #000;
-            padding-bottom: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
         }
 
         .brand h1 {
             font-size: 22px;
-            /* +4px: 18 → 22 */
-            font-weight: 800;
-            margin: 0;
-            letter-spacing: -0.5px;
-            text-transform: uppercase;
-            color: #000;
         }
 
-        .brand p {
-            margin: 3px 0 0;
-            font-size: 11px;
-            /* +2px: 9 → 11 */
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: #555;
-            font-weight: 600;
-        }
-
-        .meta {
-            text-align: right;
-        }
-
-        .meta-row {
-            margin-bottom: 2px;
-        }
-
-        .meta-label {
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 10px;
-            /* +4px: 6 → 10 */
-            color: #666;
-            margin-right: 5px;
-            letter-spacing: 0.5px;
-        }
-
-        .meta-value {
-            font-weight: 700;
-            font-size: 13px;
-            /* +4px: 9 → 13 */
-            color: #000;
-        }
-
+        /* Receipt Specific Styles */
         .type-badge {
-            background: #000;
-            color: #fff;
-            padding: 3px 8px;
-            text-transform: uppercase;
-            font-weight: 700;
-            font-size: 11px;
-            /* +4px: 7 → 11 */
-            letter-spacing: 0.8px;
             display: inline-block;
-            border-radius: 2px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 12px;
+            color: #fff;
+            letter-spacing: 1px;
         }
 
         .type-in {
-            background: #10b981;
+            background: var(--color-accent);
         }
 
-        /* Emerald */
         .type-out {
-            background: #f59e0b;
+            background: var(--color-warning);
         }
-
-        /* Amber */
 
         .client-section {
-            margin-bottom: 10px;
-        }
-
-        .client-name {
-            font-size: 15px;
-            /* +4px: 11 → 15 */
-            font-weight: 700;
-            margin-bottom: 3px;
-            color: #000;
-        }
-
-        .ref-doc {
-            font-family: 'Courier New', monospace;
-            background: #e5e7eb;
-            padding: 3px 6px;
-            display: inline-block;
-            font-size: 11px;
-            /* +4px: 7 → 11 */
-            font-weight: 600;
-            color: #374151;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-
-        th {
-            text-align: left;
-            font-size: 10px;
-            /* +4px: 6 → 10 */
-            text-transform: uppercase;
-            color: #555;
-            border-bottom: 2px solid #000;
-            padding: 6px 3px;
-            letter-spacing: 0.6px;
-            font-weight: 700;
-            background: #f3f4f6;
-        }
-
-        td {
-            padding: 6px 3px;
-            border-bottom: 1px solid #e5e7eb;
-            vertical-align: top;
-            font-size: 12px;
-            /* +4px: 8 → 12 */
-            color: #1a1a1a;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .font-mono {
-            font-family: 'Courier New', monospace;
-        }
-
-        .fw-bold {
-            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            background: var(--bg-light);
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 12px;
         }
 
         .summary-grid {
             display: flex;
-            justify-content: flex-end;
-            gap: 20px;
-            margin-top: 8px;
-            border-top: 2px solid #000;
-            padding-top: 8px;
-        }
-
-        .summary-col {
-            text-align: right;
-        }
-
-        .summary-label {
-            display: block;
-            font-size: 10px;
-            /* +4px: 6 → 10 */
-            text-transform: uppercase;
-            color: #666;
-            margin-bottom: 3px;
-            letter-spacing: 0.6px;
-            font-weight: 600;
-        }
-
-        .summary-value {
-            display: block;
-            font-size: 18px;
-            /* +4px: 14 → 18 */
-            font-weight: 700;
-            color: #000;
+            gap: 10px;
+            margin-top: 16px;
+            border-top: 2px solid var(--color-primary);
+            padding-top: 10px;
         }
 
         .stock-info {
-            margin-top: 10px;
-            padding: 6px 8px;
-            background: #f8fafc;
-            border-left: 2px solid #0f172a;
+            margin-top: 8px;
+            padding: 6px;
+            background: #f1f5f9;
+            border-left: 2px solid var(--color-primary);
             display: flex;
             justify-content: space-between;
-            align-items: center;
-        }
-
-        .stock-label {
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 12px;
-            /* 8 + 4 */
-            color: #475569;
-        }
-
-        .stock-val {
-            font-weight: 700;
-            font-size: 14px;
-            /* 10 + 4 */
-            color: #0f172a;
-        }
-
-        .footer {
-            margin-top: 15px;
-            border-top: 1px dashed #ddd;
-            padding-top: 8px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            /* 8 + 4 */
-            color: #888;
-        }
-
-        .signatures {
-            display: flex;
-            gap: 40px;
-        }
-
-        .sign-box {
-            border-top: 1px solid #000;
-            width: 60px;
-            padding-top: 4px;
-            text-align: center;
-            text-transform: uppercase;
-            font-weight: 700;
-            color: #000;
-            font-size: 12px;
-            /* 8 + 4 */
+            font-size: 11px;
         }
     </style>
 </head>
@@ -257,49 +80,43 @@
             <h1>ColdChain</h1>
             <p>Advanced WMS</p>
         </div>
-        <div class="meta">
-            <div class="meta-row">
-                <span class="meta-label">Operación</span>
-                <span class="meta-value font-mono">
-                    <?= data.id ?>
-                </span>
+        <div class="doc-type">
+            <span class="type-badge <?= data.tipo === 'ENTRADA' ? 'type-in' : 'type-out' ?>">
+                <?= data.tipo ?>
+            </span>
+            <div class="doc-subtitle">ID:
+                <?= data.id ?>
             </div>
-            <div class="meta-row">
-                <span class="meta-label">Fecha</span>
-                <span class="meta-value">
-                    <?= new Date(data.fecha).toLocaleDateString() ?>
-                </span>
-            </div>
-            <div class="meta-row" style="margin-top: 8px;">
-                <span class="type-badge <?= data.tipo === 'ENTRADA' ? 'type-in' : 'type-out' ?>">
-                    <?= data.tipo ?>
-                </span>
+            <div class="doc-subtitle">
+                <?= new Date(data.fecha).toLocaleDateString() ?>
             </div>
         </div>
     </div>
 
     <div class="client-section">
-        <div class="meta-label">Cliente Titular</div>
-        <div class="client-name">
-            <?= data.cliente ?>
+        <div>
+            <div class="info-label">Cliente Titular</div>
+            <div class="info-value">
+                <?= data.cliente ?>
+            </div>
         </div>
-        <div style="margin-top: 8px;">
-            <span class="meta-label">Referencia:</span>
-            <span class="ref-doc">
+        <div class="text-right">
+            <div class="info-label">Referencia</div>
+            <div class="font-mono" style="font-weight: 700;">
                 <?= data.docReferencia || 'S/N' ?>
-            </span>
+            </div>
         </div>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th width="30%">Producto</th>
+                <th width="35%">Producto</th>
                 <th width="15%">Lote</th>
-                <th width="12%">Venc.</th>
+                <th width="15%">Vencimiento</th>
                 <th width="10%" class="text-center">Cajas</th>
-                <th width="12%" class="text-right">Peso (Kg)</th>
-                <th width="13%" class="text-right">Stock Rest.</th>
+                <th width="15%" class="text-right">Peso (Kg)</th>
+                <th width="10%" class="text-right">Saldo</th>
             </tr>
         </thead>
         <tbody>
@@ -307,15 +124,15 @@
             <tr>
                 <td class="fw-bold">
                     <?= data.items[i].nombreProducto || data.items[i].idProducto ?>
-                    <div style="font-size: 6px; color: #666; font-weight: normal; margin-top:1px;">
+                    <div style="font-size: 10px; color: var(--color-text-muted); font-weight: normal;">
                         <?= data.items[i].empaque || 'Unidad' ?>
                     </div>
                 </td>
                 <td class="font-mono">
                     <?= data.items[i].lote ?>
                 </td>
-                <td style="font-size: 6px;">
-                    <?= data.items[i].fechaVencimiento ? new Date(data.items[i].fechaVencimiento).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit'}) : '-' ?>
+                <td>
+                    <?= data.items[i].fechaVencimiento ? new Date(data.items[i].fechaVencimiento).toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit', year:'2-digit'}) : '-' ?>
                 </td>
                 <td class="text-center fw-bold">
                     <?= data.items[i].cantidadCajas ?>
@@ -323,13 +140,10 @@
                 <td class="text-right fw-bold">
                     <?= data.items[i].pesoKg ?>
                 </td>
-                <td class="text-right" style="font-size: 6px; color: #059669;">
+                <td class="text-right" style="color: var(--color-accent); font-size: 10px;">
                     <? if (data.items[i].stockRestante !== undefined) { ?>
-                    <strong>
-                        <?= data.items[i].stockRestante ?>kg
-                    </strong>
-                    <? } else { ?>
-                    -
+                    <?= data.items[i].stockRestante ?>
+                    <? } else { ?> -
                     <? } ?>
                 </td>
             </tr>
@@ -338,43 +152,41 @@
     </table>
 
     <div class="summary-grid">
-        <div class="summary-col">
-            <span class="summary-label">Total Cajas</span>
-            <span class="summary-value">
+        <div class="card">
+            <div class="card-label">Total Cajas</div>
+            <div class="card-value">
                 <?= data.totalCajas ?>
-            </span>
+            </div>
         </div>
-        <div class="summary-col">
-            <span class="summary-label">Peso Neto</span>
-            <span class="summary-value">
-                <?= data.totalPeso ?> <small style="font-size: 10px">Kg</small>
-            </span>
+        <div class="card">
+            <div class="card-label">Peso Neto</div>
+            <div class="card-value">
+                <?= data.totalPeso ?> <span style="font-size: 12px; color: var(--color-text-muted);">Kg</span>
+            </div>
         </div>
     </div>
 
-    <!-- Stock Metrics for this Client -->
     <? if (data.totalStockPeso) { ?>
     <div class="stock-info">
+        <div><strong>SALDO TOTAL POST-MOVIMIENTO</strong></div>
         <div>
-            <span class="stock-label" style="margin-right: 10px;">Saldo en Bodega:</span>
-            <span class="stock-val" style="margin-right: 20px;">
-                <?= data.totalStockCajas ?> Cajas
-            </span>
-            <span class="stock-val">
-                <?= data.totalStockPeso ?> Kg
-            </span>
+            <strong>
+                <?= data.totalStockCajas ?>
+            </strong> Cajas •
+            <strong>
+                <?= data.totalStockPeso ?>
+            </strong> Kg
         </div>
-        <div style="font-size: 8px; text-transform: uppercase; color: #888;">Post-Movimiento</div>
     </div>
     <? } ?>
 
+    <div class="signatures">
+        <div class="sign-box">Entregado</div>
+        <div class="sign-box">Recibido</div>
+    </div>
+
     <div class="footer">
-        <div class="signatures">
-            <div class="sign-box">Entregado</div>
-            <div class="sign-box">Recibido</div>
-        </div>
-        <div>
-            Generado por ColdChain Pro •
+        <div>Generado por ColdChain Pro •
             <?= new Date().toISOString() ?>
         </div>
     </div>
