@@ -105,6 +105,20 @@ function registrarMovimiento(data) {
     const prefix = data.tipo === 'ENTRADA' ? 'MOV-IN-' : 'MOV-OUT-';
     const idMovimiento = generateNextId('MOV_HEADER', prefix);
     
+    // 1b. Enriquecer productos con nombres desde el catálogo
+    const prodData = prodSheet.getDataRange().getValues();
+    const mapProductos = {};
+    prodData.slice(1).forEach(row => {
+        // [ID_PRODUCTO, ID_CLIENTE, NOMBRE, PESO_NOMINAL, EMPAQUE]
+        mapProductos[row[0]] = { nombre: row[2], empaque: row[4] };
+    });
+    
+    const productosEnriquecidos = data.productos.map(p => ({
+        ...p,
+        nombreProducto: mapProductos[p.idProducto]?.nombre || p.idProducto,
+        empaque: mapProductos[p.idProducto]?.empaque || 'Unidad'
+    }));
+    
     // 2. Preparar Datos para PDF (Inicial)
     const datosParaPDF = {
       id: idMovimiento,
@@ -112,11 +126,11 @@ function registrarMovimiento(data) {
       cliente: data.nombreCliente || data.idCliente, 
       tipo: data.tipo,
       docReferencia: data.docReferencia,
-      items: data.productos,
+      items: productosEnriquecidos,
       totalCajas: data.totalCajas,
       totalPeso: data.totalPeso,
-      totalStockCajas: 0, // Placeholder
-      totalStockPeso: 0   // Placeholder
+      totalStockCajas: 0,
+      totalStockPeso: 0
     };
 
     // 2b. Calcular Stock Restante Total Y por Producto

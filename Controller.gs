@@ -303,6 +303,11 @@ function apiGetHistorialCompleto() {
   }));
 }
 
+// Alias para compatibilidad con frontend
+function apiGetUltimosMovimientos() {
+  return apiGetHistorialCompleto();
+}
+
 function apiActualizarMovimiento(payload) {
   const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
   const lock = LockService.getScriptLock();

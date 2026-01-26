@@ -3,318 +3,363 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>FACTURA - RESUMEN EJECUTIVO | ColdChain Pro WMS</title>
-    <?!= HtmlService.createHtmlOutputFromFile('style-pdf').getContent(); ?>
+    <title>Factura Resumen | ColdChain Pro</title>
     <style>
+        :root {
+            --brand-dark: #1a1a1a;
+            --brand-accent: #f5f5f5;
+            --text-dark: #1a1a1a;
+            --text-muted: #6b6b6b;
+            --border-light: #e5e5e5;
+        }
+
         @page {
             size: letter portrait;
-            margin: 0.5cm;
+            margin: 1.5cm;
         }
 
-        .invoice-container {
-            max-width: 800px;
-            margin: 0 auto;
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text-dark);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            font-size: 12px;
         }
 
-        /* 1. Header Semántico */
-        .invoice-header {
+        header {
             display: flex;
             justify-content: space-between;
             margin-bottom: 30px;
-            border-bottom: 2px solid var(--color-primary);
             padding-bottom: 20px;
+            border-bottom: 2px solid var(--brand-dark);
         }
 
-        .company-info h1 {
-            font-size: 24px;
-            text-transform: uppercase;
-            color: var(--color-primary);
+        header h1 {
             margin: 0;
-            line-height: 1.2;
+            font-size: 22px;
+            color: var(--brand-dark);
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
-        .client-details {
-            text-align: right;
+        header p {
+            margin: 0;
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
-        .client-details h2 {
-            font-size: 14px;
-            color: var(--color-text-muted);
+        .invoice-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--brand-dark);
+            color: white;
+            padding: 25px 30px;
+            border-radius: 6px;
+            margin-bottom: 35px;
+        }
+
+        .hero-label {
+            font-size: 11px;
             text-transform: uppercase;
-            margin: 0 0 10px 0;
+            opacity: 0.8;
             letter-spacing: 1px;
         }
 
-        .client-details p {
-            margin: 2px 0;
-            font-size: 11px;
-        }
-
-        /* 2. Resumen Financiero (Entasís) */
-        .financial-summary {
-            text-align: center;
-            margin: 30px 0;
-            padding: 20px;
-            background-color: var(--bg-light);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-
-        .financial-summary h3 {
-            font-size: 14px;
-            text-transform: uppercase;
-            color: var(--color-text-muted);
-            margin: 0 0 10px 0;
-            letter-spacing: 2px;
-        }
-
-        .total-box {
-            background-color: #ffffff;
-            border: 2px solid var(--color-primary);
-            padding: 15px 40px;
-            display: inline-block;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .total-box .currency {
-            font-size: 24px;
-            color: var(--color-primary);
-            vertical-align: top;
-            font-weight: 700;
-        }
-
-        .total-box .amount {
-            font-size: 48px;
+        .total-amount {
+            font-size: 32px;
             font-weight: 800;
-            color: var(--color-primary);
-            line-height: 1;
+            letter-spacing: -1px;
+            margin-top: 5px;
         }
 
-        .cost-breakdown {
-            font-size: 11px;
-            color: var(--color-text-muted);
-            margin-top: 10px;
+        .hero-right {
+            text-align: right;
         }
 
-        /* 3. Detalles de Consumo (Grid) */
-        .usage-details {
-            margin-bottom: 30px;
-        }
-
-        .usage-details h3 {
+        .hero-right .date {
             font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 10px;
             text-transform: uppercase;
-            border-left: 4px solid var(--color-accent);
-            padding-left: 10px;
-            margin-bottom: 15px;
-            color: var(--color-primary);
+            letter-spacing: 0.5px;
+            display: inline-block;
         }
 
-        .kpi-grid {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 35px;
         }
 
-        .kpi-item {
-            flex: 1;
-            text-align: center;
-            border: 1px solid var(--border-color);
+        .stat-card {
+            background: var(--brand-accent);
             padding: 15px;
             border-radius: 6px;
+            text-align: center;
+            border: 1px solid var(--border-light);
         }
 
-        .kpi-value {
+        .stat-value {
             display: block;
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--color-primary);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--brand-dark);
             margin-bottom: 5px;
         }
 
-        .kpi-label {
-            font-size: 10px;
+        .stat-label {
+            font-size: 9px;
             text-transform: uppercase;
-            color: var(--color-text-muted);
+            color: var(--text-muted);
+            letter-spacing: 0.8px;
+        }
+
+        .occupancy-bar {
+            width: 100%;
+            height: 6px;
+            background: #d4d4d4;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .occupancy-fill {
+            height: 100%;
+            background: #4a4a4a;
+            border-radius: 3px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            color: var(--brand-dark);
+            border-left: 3px solid var(--brand-dark);
+            padding-left: 10px;
+            margin: 30px 0 15px 0;
+            font-weight: 700;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 10px;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             font-weight: 600;
         }
 
-        /* 4. Términos del Contrato (Tabla) */
-        .contract-terms {
+        .data-table td {
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 12px;
+        }
+
+        .cost-breakdown {
+            background: var(--brand-accent);
+            border-radius: 6px;
+            padding: 20px;
             margin-bottom: 30px;
         }
 
-        .contract-terms h3 {
-            font-size: 12px;
-            text-transform: uppercase;
-            border-left: 4px solid var(--color-warning);
-            padding-left: 10px;
-            margin-bottom: 15px;
-            color: var(--color-primary);
+        .cost-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-light);
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
+        .cost-row.total {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 14px;
+            padding-top: 15px;
+            margin-top: 10px;
+            border-top: 2px solid var(--brand-dark);
         }
 
-        th {
-            background-color: var(--color-primary);
-            color: #fff;
-            padding: 10px;
-            text-transform: uppercase;
-            font-size: 10px;
-            text-align: left;
+        .cost-label {
+            color: var(--text-muted);
         }
 
-        td {
-            padding: 12px 10px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--color-text);
+        .cost-value {
+            font-weight: 600;
+            color: var(--brand-dark);
         }
 
-        tr:nth-child(even) {
-            background-color: #f8fafc;
-        }
-
-        /* 5. Footer */
-        .invoice-footer {
+        .footer-note {
             margin-top: 40px;
             padding-top: 20px;
-            border-top: 1px dashed var(--border-color);
-            text-align: center;
+            border-top: 1px solid var(--border-light);
             font-size: 10px;
-            color: var(--color-text-muted);
-        }
-
-        .legal-note {
-            margin-top: 5px;
-            font-style: italic;
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.6;
         }
     </style>
 </head>
 
 <body>
-    <div class="invoice-container">
-        <header class="invoice-header">
-            <div class="company-info">
-                <h1>COLDCHAIN<br>ADVANCED WMS</h1>
-            </div>
-            <div class="client-details">
-                <h2>Factura - Resumen Ejecutivo</h2>
-                <p><strong>Cliente:</strong>
+    <?
+var fechaInicio = new Date(data.periodo.inicio).toLocaleDateString('es-CO');
+var fechaFin = new Date(data.periodo.fin).toLocaleDateString('es-CO');
+var fechaVence = new Date(new Date().getTime() + 10*24*60*60*1000).toLocaleDateString('es-CO');
+var ocupacionPct = 0;
+if (data.contrato.posiciones > 0) {
+    ocupacionPct = Math.min(((data.metricas.posicionPromedio || 0) / data.contrato.posiciones) * 100, 100);
+}
+var totalPagar = Math.round(data.metricas.totalPagar || 0);
+var costoBase = Math.round(data.metricas.costoBase || 0);
+var costoExc = Math.round(data.metricas.costoExcedente || 0);
+?>
+
+    <header>
+        <div>
+            <h1>COLDCHAIN PRO</h1>
+            <p>Soluciones de Almacenamiento Inteligente</p>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 14px; font-weight: 700;">FACTURA RESUMEN</div>
+            <p>Período:
+                <?= fechaInicio ?> -
+                <?= fechaFin ?>
+            </p>
+            <p>Cliente: <strong>
                     <?= data.cliente.nombre ?>
-                </p>
-                <p><strong>NIT:</strong>
-                    <?= data.cliente.nit || 'N/A' ?>
-                </p>
-                <p><strong>Período:</strong>
-                    <?= new Date(data.periodo.inicio).toLocaleDateString('es-CO') ?> –
-                    <?= new Date(data.periodo.fin).toLocaleDateString('es-CO') ?>
-                </p>
-                <p><strong>Total Días:</strong>
-                    <?= data.metricas.dias ?> días
-                </p>
+                </strong></p>
+        </div>
+    </header>
+
+    <div class="invoice-hero">
+        <div>
+            <div class="hero-label">Monto Total a Pagar</div>
+            <div class="total-amount">$
+                <?= totalPagar.toLocaleString('es-CO') ?> <span style="font-size: 14px; font-weight: 400;">COP</span>
             </div>
-        </header>
-
-        <section class="financial-summary">
-            <h3>Total a Pagar</h3>
-            <div class="total-box">
-                <span class="currency">$</span>
-                <span class="amount">
-                    <?= Math.round(data.metricas.totalPagar).toLocaleString('es-CO') ?>
-                </span>
+        </div>
+        <div class="hero-right">
+            <div class="date">Vence:
+                <?= fechaVence ?>
             </div>
-            <p class="cost-breakdown">
-                Costo Base: $
-                <?= Math.round(data.metricas.costoBase).toLocaleString('es-CO') ?>
-                <span style="color: #ccc; margin: 0 5px;">|</span>
-                Excedentes: $
-                <?= Math.round(data.metricas.costoExcedente).toLocaleString('es-CO') ?>
-                (
-                <?= data.metricas.diasConExcedente ?> días con sobrecupo)
-            </p>
-        </section>
-
-        <section class="usage-details">
-            <h3>Detalles de Consumo del Período</h3>
-            <div class="kpi-grid">
-                <? 
-                const posUsada = parseFloat(data.metricas.posicionPromedio || 0);
-                const posContratada = data.contrato.posiciones;
-                const porcentaje = Math.min((posUsada / posContratada) * 100, 100);
-                ?>
-                <div class="kpi-item">
-                    <span class="kpi-value">
-                        <?= posUsada.toFixed(2) ?> pos
-                    </span>
-                    <span class="kpi-label">Ocupación Promedio</span>
-                </div>
-                <div class="kpi-item">
-                    <span class="kpi-value">
-                        <?= porcentaje.toFixed(1) ?>%
-                    </span>
-                    <span class="kpi-label">Porcentaje de Ocupación</span>
-                </div>
-                <div class="kpi-item">
-                    <span class="kpi-value">
-                        <?= posContratada ?>
-                    </span>
-                    <span class="kpi-label">Capacidad Contratada</span>
-                </div>
+            <div class="status-badge">
+                <?= data.contrato.tipoPago ?>
             </div>
-        </section>
-
-        <section class="contract-terms">
-            <h3>Términos del Contrato Estándar</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Tipo de Pago</th>
-                        <th>Posiciones</th>
-                        <th>Factor</th>
-                        <th>Precio</th>
-                        <th>Excedente</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="font-weight: 700;">
-                            <?= data.contrato.tipoPago === 'PREPAGO' ? 'PREPAGO Mensual' : 'POSTPAGO' ?>
-                        </td>
-                        <td>
-                            <?= data.contrato.posiciones ?> posiciones
-                        </td>
-                        <td>800 kg/posición</td>
-                        <td>
-                            <? if (data.contrato.tipoPago === 'PREPAGO') { ?>
-                            $
-                            <?= Math.round(data.contrato.precio).toLocaleString('es-CO') ?> mensual
-                            <? } else { ?>
-                            $
-                            <?= Math.round(data.contrato.precioDiaPosicion).toLocaleString('es-CO') ?> / día
-                            <? } ?>
-                        </td>
-                        <td>$
-                            <?= Math.round(data.contrato.exceso).toLocaleString('es-CO') ?> por pos/día
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <footer class="invoice-footer">
-            <p>Generado:
-                <?= new Date().toLocaleString('es-CO', {timeZone: 'America/Bogota'}) ?>
-            </p>
-            <p class="legal-note">Documento generado automáticamente por ColdChain Pro WMS. Para el detalle día a día,
-                solicite el reporte detallado.</p>
-        </footer>
+        </div>
     </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-value">
+                <?= data.metricas.dias ?>
+            </span>
+            <span class="stat-label">Días Facturados</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">$
+                <?= costoBase.toLocaleString('es-CO') ?>
+            </span>
+            <span class="stat-label">Costo Base</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">$
+                <?= costoExc.toLocaleString('es-CO') ?>
+            </span>
+            <span class="stat-label">Excedentes</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">
+                <?= (ocupacionPct || 0).toFixed(1) ?>%
+            </span>
+            <span class="stat-label">Ocupación Prom.</span>
+            <div class="occupancy-bar">
+                <div class="occupancy-fill" style="width: 50%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">TÉRMINOS DEL CONTRATO</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Plan Contratado</th>
+                <th>Capacidad</th>
+                <th>Factor Carga</th>
+                <th>Tarifa</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>
+                        <?= data.contrato.tipoPago ?>
+                    </strong></td>
+                <td>
+                    <?= data.contrato.posiciones ?> Posiciones
+                </td>
+                <td>800 kg/posición</td>
+                <td>
+                    <? if (data.contrato.tipoPago === 'PREPAGO') { ?>
+                    $
+                    <?= Math.round(data.contrato.precio).toLocaleString('es-CO') ?> / mes
+                    <? } else { ?>
+                    $
+                    <?= Math.round(data.contrato.precioDiaPosicion || 0).toLocaleString('es-CO') ?> / pos/día
+                    <? } ?>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">DESGLOSE DE COSTOS</div>
+    <div class="cost-breakdown">
+        <div class="cost-row">
+            <span class="cost-label">Almacenamiento Base (
+                <?= data.metricas.dias ?> días)
+            </span>
+            <span class="cost-value">$
+                <?= costoBase.toLocaleString('es-CO') ?>
+            </span>
+        </div>
+        <? if (costoExc > 0) { ?>
+        <div class="cost-row">
+            <span class="cost-label">Excedentes (
+                <?= data.metricas.diasConExcedente ?> días sobre capacidad)
+            </span>
+            <span class="cost-value">$
+                <?= costoExc.toLocaleString('es-CO') ?>
+            </span>
+        </div>
+        <? } ?>
+        <div class="cost-row total">
+            <span class="cost-label">TOTAL A PAGAR</span>
+            <span class="cost-value">$
+                <?= totalPagar.toLocaleString('es-CO') ?>
+            </span>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        Este documento es un resumen ejecutivo de consumo. El detalle de movimientos diarios se encuentra en el Reporte
+        Detallado.<br>
+        <strong>ColdChain WMS Cloud</strong> | Generado el
+        <?= new Date().toLocaleString('es-CO') ?>
+    </div>
+
 </body>
 
 </html>

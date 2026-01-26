@@ -1,230 +1,276 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 
 <head>
+    <meta charset="UTF-8">
     <?!= HtmlService.createHtmlOutputFromFile('style-pdf').getContent(); ?>
     <style>
         @page {
             size: letter portrait;
-            margin: 0;
+            margin: 1.5cm 1cm;
         }
 
-        /* Specific overrides for this template if needed */
-        .metrics-compact {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .metric-mini {
-            flex: 1;
-            background: #fff;
-            border: 1px solid var(--border-color);
-            padding: 8px;
-            text-align: center;
-            border-radius: 4px;
-        }
-
-        .metric-mini.highlight {
-            background: #dcfce7;
-            border-color: var(--color-accent);
-        }
-
-        .metric-mini.warning {
-            background: #fef3c7;
-            border-color: var(--color-warning);
-        }
-
-        .metric-mini-label {
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #334155;
             font-size: 11px;
-            text-transform: uppercase;
-            color: var(--color-text-muted);
-            letter-spacing: 0.8px;
-            margin: 0 0 4px 0;
+            line-height: 1.4;
         }
 
-        .metric-mini-value {
-            font-size: 20px;
+        /* Premium Header */
+        header {
+            position: running(header);
+            margin-bottom: 20px;
+            border-bottom: 2px solid #cbd5e1;
+            padding-bottom: 10px;
+        }
+
+        @page {
+            @top-center {
+                content: element(header);
+            }
+        }
+
+        .brand {
+            font-size: 18px;
             font-weight: 800;
-            color: var(--color-primary);
-            margin: 0;
+            color: #0f172a;
+        }
+
+        .brand span {
+            color: #2563eb;
+        }
+
+        .doc-title {
+            text-align: right;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .client-box {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .value {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        /* Table Optimization */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        th {
+            background: #f1f5f9;
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 10px;
+            padding: 8px 4px;
+            border-bottom: 2px solid #e2e8f0;
+            text-align: right;
+        }
+
+        th:first-child {
+            text-align: left;
+            padding-left: 8px;
+        }
+
+        td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: right;
+            color: #475569;
+        }
+
+        td:first-child {
+            text-align: left;
+            padding-left: 8px;
+            color: #0f172a;
+            font-weight: 600;
+            font-family: 'Consolas', monospace;
+        }
+
+        /* Zebra Striping */
+        tbody tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        /* Noise Reduction */
+        .dim {
+            color: #cbd5e1;
+        }
+
+        .alert-val {
+            color: #dc2626;
+            font-weight: 700;
+        }
+
+        .total-row {
+            background: #e2e8f0 !important;
+            font-weight: 800;
+            color: #0f172a;
+            border-top: 2px solid #0f172a;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 9px;
+            color: #cbd5e1;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 5px;
         }
     </style>
 </head>
 
 <body>
-    <!-- HEADER -->
-    <div class="header">
-        <div class="brand">
-            <h1>ColdChain</h1>
-            <p>Advanced WMS</p>
-        </div>
-        <div class="doc-type">
-            <h2 class="doc-title">FACTURA DETALLADA</h2>
-            <p class="doc-subtitle">Desglose Completo de Almacenamiento</p>
-        </div>
+    <div class="header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div class="brand">ColdChain<span>Pro</span></div>
+        <div class="doc-title">Informe Detallado de Ocupación</div>
     </div>
 
-    <!-- INFORMACIÓN DEL CLIENTE Y PERÍODO -->
-    <div class="info-row">
-        <div class="info-box">
-            <p class="info-label">Cliente</p>
-            <p class="info-value">
+    <div class="client-box">
+        <div>
+            <div class="label">Cliente</div>
+            <div class="value">
                 <?= data.cliente.nombre ?>
-            </p>
-            <p class="info-sub">NIT:
-                <?= data.cliente.nit || 'N/A' ?>
-            </p>
+            </div>
+            <div style="font-size:11px; color:#64748b">
+                <?= data.cliente.nit || 'NIT no registrado' ?>
+            </div>
         </div>
-        <div class="info-box" style="border-left-color: #0f172a;">
-            <p class="info-label">Período</p>
-            <p class="info-value">
-                <?= new Date(data.periodo.inicio).toLocaleDateString('es-CO', {day: '2-digit', month: 'short'}) ?>
-                -
-                <?= new Date(data.periodo.fin).toLocaleDateString('es-CO', {day: '2-digit', month: 'short', year: 'numeric'}) ?>
-            </p>
-            <p class="info-sub">
+        <div>
+            <div class="label">Periodo</div>
+            <div class="value">
+                <?= new Date(data.periodo.inicio).toLocaleDateString('es-CO') ?> -
+                <?= new Date(data.periodo.fin).toLocaleDateString('es-CO') ?>
+            </div>
+            <div style="font-size:11px; color:#64748b">
                 <?= data.metricas.dias ?> días facturados
-            </p>
+            </div>
         </div>
-        <div class="info-box" style="border-left-color: #f59e0b;">
-            <p class="info-label">Contrato</p>
-            <? if (data.contrato.tipoPago === 'PREPAGO') { ?>
-            <p class="info-value" style="color: #10b981;">PREPAGO -
-                <?= data.contrato.posiciones ?> Pos.
-            </p>
-            <p class="info-sub">Factor: 800 kg/pos • Base: $
-                <?= Math.round(data.contrato.precio).toLocaleString('es-CO') ?>/mes
-            </p>
-            <? } else { ?>
-            <p class="info-value" style="color: #f59e0b;">POSTPAGO - Por Uso</p>
-            <p class="info-sub">Factor: 800 kg/pos • Precio: $
-                <?= Math.round(data.contrato.precioDiaPosicion).toLocaleString('es-CO') ?>/pos/día
-            </p>
+        <div style="text-align: right;">
+            <div class="label">Total Estimado</div>
+            <div class="value" style="font-size: 16px; color: #2563eb;">$
+                <?= Math.round(data.metricas.totalPagar).toLocaleString('es-CO') ?>
+            </div>
+            <div style="font-size:11px; color:#166534">Modo:
+                <?= data.contrato.tipoPago ?>
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="12%">Fecha</th>
+                <th width="13%">Stock (Kg)</th>
+                <th width="10%">Pos. Uso</th>
+                <th width="10%">Contrato</th>
+                <th width="15%">Excedente</th>
+                <th width="15%">Costo Base</th>
+                <th width="15%">Costo Extra</th>
+                <th width="10%">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            <? for (var i = 0; i < data.detalleDiario.length; i++) { 
+                var dia = data.detalleDiario[i];
+                var exc = dia.excedente > 0;
+            ?>
+            <tr>
+                <td>
+                    <?= new Date(dia.fecha).toLocaleDateString('es-CO', {day:'2-digit', month:'2-digit'}) ?>
+                </td>
+                <td>
+                    <?= Math.round(dia.stockKg).toLocaleString() ?>
+                </td>
+                <td>
+                    <?= dia.posUsadas.toFixed(2) ?>
+                </td>
+                <td class="dim">
+                    <?= dia.posContratadas ?>
+                </td>
+
+                <!-- Noise Reduction: Empty if zero -->
+                <td>
+                    <? if (exc) { ?>
+                    <span class="alert-val">+
+                        <?= dia.excedente.toFixed(2) ?>
+                    </span>
+                    <? } else { ?>
+                    <span class="dim">-</span>
+                    <? } ?>
+                </td>
+
+                <td>$
+                    <?= Math.round(data.contrato.precio / 30).toLocaleString() ?>
+                </td> <!-- Assuming Prepago breakdown logic for display -->
+
+                <td>
+                    <? if (exc) { ?>
+                    <span class="alert-val">$
+                        <?= Math.round(dia.excedenteKg * data.contrato.exceso).toLocaleString() ?>
+                    </span>
+                    <? } else { ?>
+                    <span class="dim">-</span>
+                    <? } ?>
+                </td>
+
+                <td style="font-weight:700;">$
+                    <?= Math.round(dia.costoDia).toLocaleString() ?>
+                </td>
+            </tr>
             <? } ?>
-        </div>
-    </div>
+            <tr class="total-row">
+                <td colspan="5">TOTALES DEL PERÍODO</td>
+                <td>$
+                    <?= Math.round(data.metricas.costoBase).toLocaleString() ?>
+                </td>
+                <td>$
+                    <?= Math.round(data.metricas.costoExcedente).toLocaleString() ?>
+                </td>
+                <td>$
+                    <?= Math.round(data.metricas.totalPagar).toLocaleString() ?>
+                </td>
+            </tr>
+        </tbody>
+    </table>
 
-    <!-- MÉTRICAS COMPACTAS -->
-    <div class="metrics-compact">
-        <div class="metric-mini highlight">
-            <p class="metric-mini-label">Costo Base</p>
-            <p class="metric-mini-value">$
-                <?= Math.round(data.metricas.costoBase).toLocaleString('es-CO') ?>
-            </p>
-        </div>
-        <div class="metric-mini warning">
-            <p class="metric-mini-label">Excedentes</p>
-            <p class="metric-mini-value">$
-                <?= Math.round(data.metricas.costoExcedente).toLocaleString('es-CO') ?>
-            </p>
-        </div>
-        <div class="metric-mini">
-            <p class="metric-mini-label">Días c/Exceso</p>
-            <p class="metric-mini-value">
-                <?= data.metricas.diasConExcedente ?>
-            </p>
-        </div>
-    </div>
-
-    <!-- TABLA DETALLADA DÍA A DÍA -->
-    <div class="table-section">
-        <h3 class="table-title">📊 Desglose Diario de Ocupación</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th width="12%">Fecha</th>
-                    <th width="12%" class="text-right">Stock (Kg)</th>
-                    <th width="12%" class="text-right">Pos. Usadas</th>
-                    <th width="12%" class="text-right">Contratado</th>
-                    <th width="12%" class="text-right">Excedente</th>
-                    <th width="14%" class="text-right">Costo Base</th>
-                    <th width="14%" class="text-right">Costo Exceso</th>
-                    <th width="12%" class="text-right">Total Día</th>
-                </tr>
-            </thead>
-            <tbody>
-                <? for (var i = 0; i < data.detalleDiario.length; i++) { 
-                    var dia = data.detalleDiario[i];
-                    var tieneExceso = dia.excedente > 0;
-                    var costoBaseDia = data.contrato.precio / 30;
-                    var costoExcDia = dia.excedente * data.contrato.exceso;
-                ?>
-                <tr <?=tieneExceso ? 'class="has-excess"' : '' ?>>
-                    <td class="font-mono">
-                        <?= new Date(dia.fecha).toLocaleDateString('es-CO', {day: '2-digit', month: '2-digit'}) ?>
-                    </td>
-                    <td class="text-right">
-                        <?= Math.round(dia.stockKg).toLocaleString('es-CO') ?>
-                    </td>
-                    <td class="text-right" style="font-weight: 700;">
-                        <?= dia.posUsadas.toFixed(2) ?>
-                    </td>
-                    <td class="text-right" style="color: #666;">
-                        <?= dia.posContratadas ?>
-                    </td>
-                    <td class="text-center">
-                        <? if (tieneExceso) { ?>
-                        <span class="excess-badge">+
-                            <?= dia.excedente.toFixed(2) ?>
-                        </span>
-                        <? } else { ?>
-                        <span class="ok-badge">✓</span>
-                        <? } ?>
-                    </td>
-                    <td class="text-right">
-                        $
-                        <?= Math.round(costoBaseDia).toLocaleString('es-CO') ?>
-                    </td>
-                    <td class="text-right"
-                        style="<?= tieneExceso ? 'color: #f59e0b; font-weight: 700;' : 'color: #10b981;' ?>">
-                        <? if (tieneExceso) { ?>
-                        $
-                        <?= Math.round(costoExcDia).toLocaleString('es-CO') ?>
-                        <? } else { ?>
-                        $0
-                        <? } ?>
-                    </td>
-                    <td class="text-right" style="font-weight: 700;">
-                        $
-                        <?= Math.round(dia.costoDia).toLocaleString('es-CO') ?>
-                    </td>
-                </tr>
-                <? } ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- TOTAL FINAL -->
-    <div class="total-final">
-        <p class="total-final-label">Total a Pagar</p>
-        <p class="total-final-value">$
-            <?= Math.round(data.metricas.totalPagar).toLocaleString('es-CO') ?>
-        </p>
-        <div class="total-final-breakdown">
-            <div>
-                <span>Base:</span> <strong>$
-                    <?= Math.round(data.metricas.costoBase).toLocaleString('es-CO') ?>
-                </strong>
-            </div>
-            <div>
-                <span>Excedentes:</span> <strong>$
-                    <?= Math.round(data.metricas.costoExcedente).toLocaleString('es-CO') ?>
-                </strong>
-            </div>
-            <div>
-                <span>Días:</span> <strong>
-                    <?= data.metricas.dias ?>
-                </strong>
-            </div>
-        </div>
-    </div>
-
-    <!-- FOOTER -->
     <div class="footer">
-        Documento generado automáticamente el
-        <?= new Date().toLocaleString('es-CO', {timeZone: 'America/Bogota'}) ?>
-        por <strong>ColdChain Pro WMS</strong>
+        Página generada por ColdChain Pro WMS. Documento confidencial.
     </div>
 </body>
 
