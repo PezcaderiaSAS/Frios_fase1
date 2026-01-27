@@ -1,10 +1,11 @@
 /**
- * Genera IDs únicos (Auto-incrementales) de forma segura ante concurrencia
+ * Genera IDs únicos (Auto-incrementales) leyendo la hoja directamente.
+ * IMPORTANTE: Esta función asume que YA existe un bloqueo activo (LockService) manejado por el caller.
+ * @requires LockService (en la función que llama a esta)
  */
 function generateNextId(sheetName, prefix) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000); 
-
+  // NOTA: Se eliminó LockService interno para evitar liberar el bloqueo prematuramente.
+  
   try {
     // CORRECCIÓN: Usamos CONFIG.SPREADSHEET_ID
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
@@ -13,6 +14,7 @@ function generateNextId(sheetName, prefix) {
     // Si la hoja no existe o está vacía
     if (!sheet || sheet.getLastRow() < 2) return prefix + "001";
     
+    // Optimización: Leer solo la columna 1 (IDs)
     const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
     
     let maxNum = 0;
@@ -31,8 +33,6 @@ function generateNextId(sheetName, prefix) {
   } catch (e) {
     Logger.log("Error ID: " + e);
     throw new Error("Error generando ID: " + e.message);
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -215,6 +215,7 @@ function registrarMovimiento(data) {
       detailSheet.getRange(detailSheet.getLastRow() + 1, 1, detallesRows.length, detallesRows[0].length).setValues(detallesRows);
     }
     
+    SpreadsheetApp.flush(); // FORZAR ESCRITURA
     return { success: true, id: idMovimiento, pdfUrl: urlPdf, message: "Guardado exitoso" };
 
   } catch (e) {
@@ -231,7 +232,7 @@ function registrarMovimiento(data) {
  */
 function registrarCliente(data) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  lock.waitLock(30000);
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     const sheetCli = ss.getSheetByName('DIM_CLIENTES');
@@ -281,6 +282,7 @@ function registrarCliente(data) {
       Logger.log(`Contrato creado: ${idContrato} - Tipo: ${tipoPago}`);
     }
     
+    SpreadsheetApp.flush(); // FORZAR ESCRITURA
     return { success: true, message: `Cliente ${data.nombre} creado con éxito.` };
   } catch(e) {
     Logger.log('Error en registrarCliente: ' + e.toString());
@@ -296,7 +298,7 @@ function registrarCliente(data) {
  */
 function registrarProducto(data) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  lock.waitLock(30000);
   try {
     // Validación: ID_CLIENTE es requerido
     if (!data.idCliente) {
@@ -325,6 +327,7 @@ function registrarProducto(data) {
       data.empaque
     ]);
     
+    SpreadsheetApp.flush(); // FORZAR ESCRITURA
     return { success: true, message: 'Producto creado: ' + id };
   } catch(e) {
     return { success: false, error: e.message };
@@ -397,6 +400,7 @@ function registrarProductosMasivo(listaProductos, idCliente) {
     }
     
     return { success: true, message: `✅ Se registraron ${nuevasFilas.length} productos para el cliente ${idCliente}.` };
+    SpreadsheetApp.flush(); // FORZAR ESCRITURA
 
   } catch (e) {
     return { success: false, error: e.message };
@@ -411,8 +415,8 @@ function registrarProductosMasivo(listaProductos, idCliente) {
  */
 function actualizarClienteDB(data) {
   const lock = LockService.getScriptLock();
-  // Esperar hasta 10s para evitar choques de escritura
-  lock.waitLock(10000);
+  // Esperar hasta 30s para evitar choques de escritura
+  lock.waitLock(30000);
   
   try {
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);

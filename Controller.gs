@@ -28,6 +28,11 @@ function getHtmlContent(filename) {
  */
 function apiGetDashboardData(idCliente) {
   try {
+    // CACHE CHECK
+    const cacheKey = 'DASH_DATA_' + idCliente;
+    const cached = getFromCache(cacheKey);
+    if (cached) return cached;
+
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
     
     // Lectura en bloque para minimizar I/O
@@ -96,7 +101,7 @@ function apiGetDashboardData(idCliente) {
           url: String(r[7])
         }));
 
-    return {
+    const result = {
       success: true,
       contrato: contrato,
       ocupacion: {
@@ -106,6 +111,9 @@ function apiGetDashboardData(idCliente) {
       },
       historial: ultimosMovimientos
     };
+
+    saveToCache(cacheKey, result, 1800); // 30 min cache
+    return result;
 
   } catch (e) {
     Logger.log("Error Dashboard: " + e);
@@ -122,6 +130,11 @@ function apiGetDashboardData(idCliente) {
  */
 function apiGetInventarioCliente(idCliente) {
   try {
+    // CACHE CHECK
+    const cacheKey = 'INV_DATA_' + idCliente;
+    const cached = getFromCache(cacheKey);
+    if (cached) return cached;
+
     const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const headers = ss.getSheetByName('MOV_HEADER').getDataRange().getValues();
   const details = ss.getSheetByName('MOV_DETAIL').getDataRange().getValues();
@@ -170,26 +183,25 @@ function apiGetInventarioCliente(idCliente) {
   });
 
   // Filtrar solo lo que tiene existencia positiva (> 0.01) y ordenar FIFO
-  return Object.values(inventario)
+  
+  const result = Object.values(inventario)
     .filter(item => item.peso > 0.01)
     .sort((a, b) => {
-        // Orden principal: Nombre Producto (Alfabetico)
         if (a.nombreProducto < b.nombreProducto) return -1;
         if (a.nombreProducto > b.nombreProducto) return 1;
         
-        // Orden secundario: Lote (Numérico Ascendente) -> FIFO
-        // Intentar parsear lote a numero para orden correcto (1, 2, 10 vs 1, 10, 2)
         const loteA = parseInt(a.lote, 10);
         const loteB = parseInt(b.lote, 10);
         
-        if (!isNaN(loteA) && !isNaN(loteB)) {
-             return loteA - loteB;
-        }
-        // Fallback para lotes alfanumericos viejos
+        if (!isNaN(loteA) && !isNaN(loteB)) return loteA - loteB;
         if (String(a.lote) < String(b.lote)) return -1;
         if (String(a.lote) > String(b.lote)) return 1;
         return 0;
     });
+
+  saveToCache(cacheKey, result, 3600); // 1 hora
+  return result;
+
   } catch (e) {
     Logger.log("Error apiGetInventarioCliente: " + e);
     return []; // Retornar array vacio en error para no romper frontend
@@ -202,6 +214,11 @@ function apiGetInventarioCliente(idCliente) {
 
 function apiGetProductosConStock(idCliente) {
   try {
+    // CACHE CHECK
+    const cacheKey = 'STOCK_DATA_' + idCliente;
+    const cached = getFromCache(cacheKey);
+    if (cached) return cached;
+
     const productosBase = apiGetProductos(idCliente); 
   
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
@@ -220,11 +237,15 @@ function apiGetProductosConStock(idCliente) {
     stockMap[idProd].peso += peso;
   });
 
-  return productosBase.map(p => ({
+  const result = productosBase.map(p => ({
     ...p,
     stockCajas: (stockMap[p.id]?.cajas || 0).toFixed(1),
     stockPeso: (stockMap[p.id]?.peso || 0).toFixed(2)
   }));
+  
+  saveToCache(cacheKey, result, 1800); // 30 min
+  return result;
+
   } catch (e) {
     Logger.log("Error apiGetProductosConStock: " + e);
     return [];
@@ -308,8 +329,45 @@ function apiGetUltimosMovimientos() {
   return apiGetHistorialCompleto();
 }
 
+// ======================================================
+// SCHEMAS DE VALIDACIÓN
+// ======================================================
+const SCHEMAS = {
+    MOVIMIENTO: {
+        tipo: (v) => ['ENTRADA', 'SALIDA'].includes(v),
+        idCliente: (v) => typeof v === 'string' && v.length > 0,
+        fecha: (v) => !isNaN(new Date(v).getTime()),
+        totalCajas: (v) => typeof v === 'number' && v >= 0,
+        totalPeso: (v) => typeof v === 'number' && v >= 0,
+        productos: (v) => Array.isArray(v) && v.length > 0 && v.every(p => p.idProducto && p.cantidadCajas !== undefined && p.pesoKg !== undefined)
+    },
+    CLIENTE: {
+        nombre: (v) => typeof v === 'string' && v.length > 2,
+        nit: (v) => typeof v === 'string' && v.length > 4,
+        tipoPago: (v) => ['PREPAGO', 'POSTPAGO'].includes(v)
+    }
+};
+
+function validateSchema(data, schemaName) {
+    const schema = SCHEMAS[schemaName];
+    if (!schema) throw new Error("Schema no definido: " + schemaName);
+    
+    const errors = [];
+    for (const [field, validator] of Object.entries(schema)) {
+        if (!validator(data[field])) {
+            errors.push(`Campo inválido o faltante: ${field}`);
+        }
+    }
+    
+    if (errors.length > 0) throw new Error("Error de Validación: " + errors.join(', '));
+}
+
 function apiActualizarMovimiento(payload) {
   const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  
+  // VALIDACIÓN
+  validateSchema(data, 'MOVIMIENTO');
+
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   
@@ -363,6 +421,11 @@ function apiActualizarMovimiento(payload) {
       sheetDetail.getRange(sheetDetail.getLastRow() + 1, 1, nuevosDetalles.length, nuevosDetalles[0].length).setValues(nuevosDetalles);
     }
     
+    // INVALIDAR CACHÉ
+    clearCache('DASH_DATA_' + data.idCliente);
+    clearCache('INV_DATA_' + data.idCliente);
+    clearCache('STOCK_DATA_' + data.idCliente);
+
     return { success: true, message: "Movimiento actualizado." };
     
   } catch(e) {
@@ -482,10 +545,19 @@ function apiGetDataInicial() {
 
 function apiGuardarMovimiento(payload) {
   const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-  return registrarMovimiento(data);
+  validateSchema(data, 'MOVIMIENTO');
+  const res = registrarMovimiento(data);
+  
+  if (res.success && data.idCliente) {
+     clearCache('DASH_DATA_' + data.idCliente);
+     clearCache('INV_DATA_' + data.idCliente);
+     clearCache('STOCK_DATA_' + data.idCliente);
+  }
+  return res;
 }
 
 function apiGuardarCliente(form) { 
+   validateSchema(form, 'CLIENTE');
    const res = registrarCliente(form);
    if (res.success) clearCache('CLIENTES_DATA');
    return res;
@@ -502,7 +574,10 @@ function apiGuardarProductosBatch(lista, idCliente) {
    const res = registrarProductosMasivo(lista, idCliente);
    if (res.success) {
       clearCache('PRODUCTOS_DATA_ALL');
-      if (idCliente) clearCache('PRODUCTOS_DATA_' + idCliente);
+      if (idCliente) {
+         clearCache('PRODUCTOS_DATA_' + idCliente);
+         clearCache('STOCK_DATA_' + idCliente); // Stock depende de lista de productos
+      }
    }
    return res;
 }
@@ -514,6 +589,7 @@ function apiGuardarProductosBatch(lista, idCliente) {
 
 
 function apiActualizarCliente(data) {
+  validateSchema(data, 'CLIENTE');
   // Asegurar que los números sean números y no texto "10"
   data.posiciones = Number(data.posiciones);
   data.precioPosicion = Number(data.precioPosicion);
@@ -634,6 +710,8 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
       excedente: contrato.tipoPago === 'PREPAGO' ? excedentePos : 0,
       excedenteKg: contrato.tipoPago === 'PREPAGO' ? excedenteKg : 0,
       costoDia: totalDia,
+      costoBaseDia: costoBaseDia,
+      costoExcDia: costoExcDia,
       tipoCobro: contrato.tipoPago
     });
   }

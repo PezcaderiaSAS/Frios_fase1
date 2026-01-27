@@ -18,9 +18,22 @@
     };
 
     // ======================================================
-    // 2. MOTOR DE NAVEGACIÓN
+    // 2. MOTOR DE NAVEGACIÓN Y UTILIDAD PROMISE
     // ======================================================
-    function loadView(viewName) {
+
+    /**
+     * Wrapper para convertir google.script.run en Promesas
+     */
+    function serverCall(funcName, ...args) {
+        return new Promise((resolve, reject) => {
+            google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+            [funcName](...args);
+        });
+    }
+
+    async function loadView(viewName) {
         if (!viewName) return;
         const app = document.getElementById('app');
 
@@ -30,19 +43,18 @@
             <div class="text-muted fw-bold">Cargando módulo...</div>
         </div>`;
 
-        google.script.run
-            .withSuccessHandler(function (htmlContent) {
-                app.innerHTML = htmlContent;
-                if (Router[viewName]) {
-                    console.log('Iniciando lógica:', viewName);
-                    try { Router[viewName](); }
-                    catch (e) { console.error(e); alert("Error JS module: " + e.message); }
-                }
-            })
-            .withFailureHandler(function (err) {
-                app.innerHTML = `<div class="alert alert-danger m-4">Error loading view: ${err.message}</div>`;
-            })
-            .getHtmlContent(viewName);
+        try {
+            const htmlContent = await serverCall('getHtmlContent', viewName);
+            app.innerHTML = htmlContent;
+
+            if (Router[viewName]) {
+                console.log('Iniciando lógica:', viewName);
+                await Router[viewName]();
+            }
+        } catch (err) {
+            console.error(err);
+            app.innerHTML = `<div class="alert alert-danger m-4">Error cargando vista: ${err.message}</div>`;
+        }
     }
 
     // ======================================================
@@ -51,29 +63,34 @@
 
     // --- PRODUCTOS ---
     // --- PRODUCTOS ---
-    function initProducts() {
+    // --- PRODUCTOS ---
+    async function initProducts() {
         const tbody = document.getElementById('products-table-body');
         const loader = document.getElementById('loading-products');
         const container = document.getElementById('products-container');
         const btnRefresh = document.getElementById('btn-refresh-products');
         const filterCli = document.getElementById('filter-products-client');
 
-        // Load Clients for Filter
-        google.script.run.withSuccessHandler(clientes => {
+        // Cargar Clientes para Filtro
+        try {
+            const clientes = await serverCall('apiGetClientes');
             let opts = '<option value="">Todos los Clientes</option>';
             clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
-            // Preserve selection if reloaded
+
             const current = filterCli.value;
             filterCli.innerHTML = opts;
             if (current) filterCli.value = current;
-        }).apiGetClientes();
+        } catch (e) {
+            alert("Error cargando clientes: " + e.message);
+        }
 
-        function loadData() {
-            const idCliente = filterCli.value; // Get selected value (or empty)
+        async function loadData() {
+            const idCliente = filterCli.value;
             loader.classList.remove('d-none');
             container.classList.add('d-none');
 
-            google.script.run.withSuccessHandler(data => {
+            try {
+                const data = await serverCall('apiGetProductosConStock', idCliente);
                 GLOBAL_STATE.productos = data;
                 let html = '';
                 if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
@@ -91,27 +108,29 @@
                     });
                 }
                 tbody.innerHTML = html;
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+            } finally {
                 loader.classList.add('d-none');
                 container.classList.remove('d-none');
-            }).apiGetProductosConStock(idCliente);
+            }
         }
 
-        // Event Listeners
         if (btnRefresh) btnRefresh.onclick = loadData;
         if (filterCli) filterCli.onchange = loadData;
 
-        // Initial Load
         loadData();
     }
 
     // --- DASHBOARD ---
-    function initDashboard() {
+    async function initDashboard() {
         const select = document.getElementById('dash-select-cliente');
         const loader = document.getElementById('dash-loading');
         const content = document.getElementById('dash-content');
         const empty = document.getElementById('dash-empty');
 
-        google.script.run.withSuccessHandler(clientes => {
+        try {
+            const clientes = await serverCall('apiGetClientes');
             GLOBAL_STATE.clientes = clientes;
             let opts = '<option value="" disabled selected>Seleccione Cliente...</option>';
             clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
@@ -119,7 +138,9 @@
 
             const saved = sessionStorage.getItem('dashboardCliente');
             if (saved) { select.value = saved; loadData(saved); }
-        }).apiGetClientes();
+        } catch (e) {
+            alert("Error cargando clientes: " + e.message);
+        }
 
         select.onchange = () => {
             const id = select.value;
@@ -127,13 +148,15 @@
             loadData(id);
         };
 
-        function loadData(id) {
+        async function loadData(id) {
             loader.classList.remove('d-none');
             content.classList.add('d-none');
             empty.classList.add('d-none');
 
-            google.script.run.withSuccessHandler(res => {
+            try {
+                const res = await serverCall('apiGetDashboardData', id);
                 loader.classList.add('d-none');
+
                 if (res.success) {
                     const pct = res.ocupacion.porcentaje;
                     const elPct = document.getElementById('dash-porcentaje');
@@ -169,14 +192,14 @@
                     document.getElementById('dash-pos-contrato').textContent = res.contrato.posiciones;
 
                     // Alert check
-                    const alert = document.getElementById('dash-alert-exceso');
+                    const alertElem = document.getElementById('dash-alert-exceso'); // Renamed variable locally to avoid conflict
                     if (pct >= 100) {
-                        alert.classList.remove('d-none');
-                        alert.classList.add('d-flex');
+                        alertElem.classList.remove('d-none');
+                        alertElem.classList.add('d-flex');
                         document.getElementById('dash-exceso-msg').textContent = `Uso actual: ${pct.toFixed(1)}%. Se aplicará tarifa de excedente.`;
                     } else {
-                        alert.classList.add('d-none');
-                        alert.classList.remove('d-flex');
+                        alertElem.classList.add('d-none');
+                        alertElem.classList.remove('d-flex');
                     }
 
                     const tbody = document.getElementById('dash-historial-body');
@@ -193,17 +216,24 @@
                     });
                     tbody.innerHTML = html;
                     content.classList.remove('d-none');
-                } else alert(res.error);
-            }).apiGetDashboardData(id);
+                } else {
+                    alert(res.error);
+                }
+            } catch (e) {
+                alert("Error obteniendo datos: " + e.message);
+                loader.classList.add('d-none');
+            }
         }
     }
 
     // --- CLIENTES ---
-    function initClients() {
+    // --- CLIENTES ---
+    async function initClients() {
         const tbody = document.getElementById('clients-table-body');
         const btnNew = document.getElementById('btn-nuevo-cliente');
 
-        google.script.run.withSuccessHandler(clientes => {
+        try {
+            const clientes = await serverCall('apiGetClientes');
             GLOBAL_STATE.clientes = clientes;
             let html = '';
             clientes.forEach(c => {
@@ -218,7 +248,9 @@
             tbody.innerHTML = html;
 
             document.querySelectorAll('.btn-edit').forEach(b => b.onclick = () => loadEdit(b.dataset.id));
-        }).apiGetClientes();
+        } catch (e) {
+            alert("Error cargando clientes: " + e.message);
+        }
 
         btnNew.onclick = () => {
             document.getElementById('form-cliente').reset();
@@ -234,7 +266,7 @@
             else fieldPrecio.classList.add('d-none');
         };
 
-        document.getElementById('form-cliente').onsubmit = (e) => {
+        document.getElementById('form-cliente').onsubmit = async (e) => {
             e.preventDefault();
             const form = {
                 id: document.getElementById('cli-id').value,
@@ -248,10 +280,14 @@
                 precioDiaPosicion: document.getElementById('cli-precioDia').value
             };
             const method = form.id ? 'apiActualizarCliente' : 'apiGuardarCliente';
-            google.script.run.withSuccessHandler(res => {
+
+            try {
+                const res = await serverCall(method, form);
                 alert(res.message);
                 if (res.success) { initClients(); btnNew.click(); }
-            })[method](form);
+            } catch (err) {
+                alert("Error guardando cliente: " + err.message);
+            }
         };
 
         function loadEdit(id) {
@@ -278,13 +314,15 @@
     }
 
     // --- VISTA: ENTRADA ---
-    function initEntrada() {
+    // --- VISTA: ENTRADA ---
+    async function initEntrada() {
         const tbody = document.getElementById('entrada-tbody');
         const selectCli = document.getElementById('entrada-cliente');
         const btnAdd = document.getElementById('entrada-btn-add');
         const btnSave = document.getElementById('entrada-btn-save');
 
-        google.script.run.withSuccessHandler(res => {
+        try {
+            const res = await serverCall('apiGetDataInicial');
             GLOBAL_STATE.clientes = res.clientes;
             GLOBAL_STATE.productos = res.productos;
             let opts = '<option value="" disabled selected>Seleccione...</option>';
@@ -294,7 +332,9 @@
             document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
             document.getElementById('entrada-fecha-hoy').textContent = new Date().toLocaleDateString();
             addItemRow();
-        }).apiGetDataInicial();
+        } catch (e) {
+            showToast("Error cargando datos iniciales: " + e.message, 'danger');
+        }
 
         btnAdd.onclick = addItemRow;
         btnSave.onclick = saveEntrada;
@@ -372,7 +412,7 @@
             el.addEventListener('hidden.bs.toast', () => el.remove());
         }
 
-        function saveEntrada() {
+        async function saveEntrada() {
             const idCli = selectCli.value;
             if (!idCli) return showToast("Seleccione Cliente", 'danger');
 
@@ -402,8 +442,10 @@
             btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
             showToast("Procesando entrada...", 'primary');
 
-            google.script.run.withSuccessHandler(res => {
+            try {
+                const res = await serverCall('apiGuardarMovimiento', pay);
                 btnSave.disabled = false; btnSave.innerHTML = originalText;
+
                 if (res.success) {
                     showToast(`Entrada ${res.id} guardada exitosamente`, 'success');
                     if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
@@ -412,12 +454,16 @@
                 } else {
                     showToast("Error: " + res.error, 'danger');
                 }
-            }).apiGuardarMovimiento(pay);
+            } catch (err) {
+                btnSave.disabled = false; btnSave.innerHTML = originalText;
+                showToast("Error del servidor: " + err.message, 'danger');
+            }
         }
     }
 
     // --- VISTA: SALIDA ---
-    function initSalida() {
+    // --- VISTA: SALIDA ---
+    async function initSalida() {
         const selectCli = document.getElementById('salida-cliente');
         const invBody = document.getElementById('salida-inv-body');
         const cartItems = document.getElementById('salida-cart-items');
@@ -425,15 +471,22 @@
         const btnSave = document.getElementById('salida-btn-save');
         let CART = [];
 
-        google.script.run.withSuccessHandler(c => {
+        try {
+            const [clientes, productos] = await Promise.all([
+                serverCall('apiGetClientes'),
+                serverCall('apiGetProductos')
+            ]);
             let opts = '<option value="" disabled selected>Seleccione...</option>';
-            c.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
+            clientes.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
             selectCli.innerHTML = opts;
-        }).apiGetClientes();
-        google.script.run.withSuccessHandler(p => GLOBAL_STATE.productos = p).apiGetProductos();
+            GLOBAL_STATE.productos = productos;
+        } catch (e) {
+            alert("Error inicializando módulo de salida: " + e.message);
+        }
 
-        selectCli.onchange = () => {
-            google.script.run.withSuccessHandler(inv => {
+        selectCli.onchange = async () => {
+            try {
+                const inv = await serverCall('apiGetInventarioCliente', selectCli.value);
                 invBody.innerHTML = '';
                 CART = []; renderCart();
                 if (!inv || inv.length === 0) { document.getElementById('salida-empty').classList.remove('d-none'); return; }
@@ -459,7 +512,9 @@
                 }
                 invBody.innerHTML = html;
                 document.querySelectorAll('.btn-add').forEach(b => b.onclick = () => addToCart(JSON.parse(b.dataset.item)));
-            }).apiGetInventarioCliente(selectCli.value);
+            } catch (err) {
+                alert("Error cargando inventario: " + err.message);
+            }
         };
 
         function addToCart(item) {
@@ -518,8 +573,8 @@
             document.getElementById('salida-total-peso').textContent = tot.toFixed(2);
         }
 
-        btnSave.onclick = () => {
-            if (CART.length === 0) return alert("Vacio");
+        btnSave.onclick = async () => {
+            if (CART.length === 0) return alert("El carrito está vacío.");
             const pay = {
                 tipo: 'SALIDA', idCliente: selectCli.value, nombreCliente: selectCli.options[selectCli.selectedIndex].text,
                 docReferencia: document.getElementById('salida-doc').value || 'Despacho',
@@ -527,16 +582,24 @@
                 productos: CART.map(i => ({ idProducto: i.idProducto, lote: i.lote, cantidadCajas: i.salidaCajas * -1, pesoKg: i.salidaKg * -1 }))
             };
             btnSave.disabled = true; btnSave.textContent = 'Procesando...';
-            google.script.run.withSuccessHandler(res => {
+            try {
+                const res = await serverCall('apiGuardarMovimiento', pay);
                 btnSave.disabled = false; btnSave.textContent = 'Confirmar Despacho';
-                if (res.success) { alert("Exito: " + res.id); if (res.pdfUrl) window.open(res.pdfUrl, '_blank'); selectCli.onchange(); document.getElementById('salida-doc').value = ''; }
-                else alert(res.error);
-            }).apiGuardarMovimiento(pay);
+                if (res.success) {
+                    alert("Éxito: " + res.id);
+                    if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
+                    selectCli.onchange();
+                    document.getElementById('salida-doc').value = '';
+                } else alert(res.error);
+            } catch (err) {
+                btnSave.disabled = false; btnSave.textContent = 'Confirmar Despacho';
+                alert("Error procesando salida: " + err.message);
+            }
         };
     }
 
     // --- VISTA: MOVIMIENTOS ---
-    function initMovimientos() {
+    async function initMovimientos() {
         const search = document.getElementById('mov-search');
         const tbody = document.getElementById('mov-table-body');
         const loader = document.getElementById('mov-loading');
@@ -574,11 +637,19 @@
         table.classList.add('d-none');
         empty.classList.add('d-none');
 
-        google.script.run.withSuccessHandler(res => {
+        loader.classList.remove('d-none');
+        table.classList.add('d-none');
+        empty.classList.add('d-none');
+
+        try {
+            const res = await serverCall('apiGetUltimosMovimientos');
             loader.classList.add('d-none');
             allMovs = res;
             render(allMovs);
-        }).apiGetUltimosMovimientos();
+        } catch (e) {
+            alert("Error cargando historial: " + e.message);
+            loader.classList.add('d-none');
+        }
 
         document.getElementById('mov-btn-refresh').onclick = initMovimientos;
 
@@ -594,7 +665,7 @@
     }
 
     // --- VISTA: BILLING (UPDATED) ---
-    function initBilling() {
+    async function initBilling() {
         const selCli = document.getElementById('bill-cliente');
         const dateIn = document.getElementById('bill-inicio');
         const dateOut = document.getElementById('bill-fin');
@@ -608,24 +679,28 @@
 
         let currentResult = null; // Store for PDF generation
 
-        google.script.run.withSuccessHandler(c => {
+        try {
+            const c = await serverCall('apiGetClientes');
             let opts = '<option value="" disabled selected>Seleccione...</option>';
             c.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
             selCli.innerHTML = opts;
-        }).apiGetClientes();
+        } catch (e) {
+            alert("Error cargando clientes: " + e.message);
+        }
 
         const now = new Date();
         dateOut.valueAsDate = now;
         dateIn.valueAsDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        btnCalc.onclick = () => {
+        btnCalc.onclick = async () => {
             if (!selCli.value) return alert("Seleccione Cliente");
             results.classList.add('d-none');
             loader.classList.remove('d-none');
             btnCalc.disabled = true;
 
-            // Call specific Billing API - CORRECTION: Name is apiCalcularFacturacion
-            google.script.run.withSuccessHandler(res => {
+            try {
+                // Call specific Billing API - CORRECTION: Name is apiCalcularFacturacion
+                const res = await serverCall('apiCalcularFacturacion', selCli.value, dateIn.value, dateOut.value);
                 loader.classList.add('d-none');
                 btnCalc.disabled = false;
                 if (!res.success) return alert("Error/Sin datos: " + (res.error || ""));
@@ -647,13 +722,13 @@
                 document.getElementById('bill-kpi-exce-dias').textContent = `${res.diasConExcedente} días con exceso`;
                 document.getElementById('bill-kpi-total').textContent = '$' + res.totalPagar.toLocaleString();
 
-                const alert = document.getElementById('bill-alert-type');
+                const alertElem = document.getElementById('bill-alert-type');
                 if (res.tipoPago === 'PREPAGO') {
-                    alert.className = 'alert mb-0 alert-success';
+                    alertElem.className = 'alert mb-0 alert-success';
                     document.getElementById('bill-type-text').textContent = 'Prepago';
                     document.getElementById('bill-type-desc').textContent = 'Base incluye posiciones contratadas.';
                 } else {
-                    alert.className = 'alert mb-0 alert-warning';
+                    alertElem.className = 'alert mb-0 alert-warning';
                     document.getElementById('bill-type-text').textContent = 'Postpago';
                     document.getElementById('bill-type-desc').textContent = 'Pago total al retiro.';
                 }
@@ -674,35 +749,46 @@
                 });
                 tbody.innerHTML = html;
                 results.classList.remove('d-none');
-
-            }).apiCalcularFacturacion(selCli.value, dateIn.value, dateOut.value);
+            } catch (err) {
+                loader.classList.add('d-none');
+                btnCalc.disabled = false;
+                alert("Error de cálculo: " + err.message);
+            }
         };
 
         // PDF Handlers
-        if (btnPdfBrief) btnPdfBrief.onclick = () => {
+        if (btnPdfBrief) btnPdfBrief.onclick = async () => {
             if (!currentResult) return;
             const btn = btnPdfBrief;
             const originalText = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
 
-            google.script.run.withSuccessHandler(res => {
+            try {
+                const res = await serverCall('apiGenerarPDFFacturaResumen', currentResult);
                 btn.disabled = false; btn.innerHTML = originalText;
                 if (res.success && res.pdfUrl) window.open(res.pdfUrl, '_blank');
                 else alert("Error PDF: " + (res.error || "Desconocido"));
-            }).apiGenerarPDFFacturaResumen(currentResult);
+            } catch (err) {
+                btn.disabled = false; btn.innerHTML = originalText;
+                alert("Error generando PDF: " + err.message);
+            }
         };
 
-        if (btnPdfDetail) btnPdfDetail.onclick = () => {
+        if (btnPdfDetail) btnPdfDetail.onclick = async () => {
             if (!currentResult) return;
             const btn = btnPdfDetail;
             const originalText = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
 
-            google.script.run.withSuccessHandler(res => {
+            try {
+                const res = await serverCall('apiGenerarPDFFacturaDetallada', currentResult);
                 btn.disabled = false; btn.innerHTML = originalText;
                 if (res.success && res.pdfUrl) window.open(res.pdfUrl, '_blank');
                 else alert("Error PDF: " + (res.error || "Desconocido"));
-            }).apiGenerarPDFFacturaDetallada(currentResult);
+            } catch (err) {
+                btn.disabled = false; btn.innerHTML = originalText;
+                alert("Error generando PDF: " + err.message);
+            }
         };
     }
 </script>

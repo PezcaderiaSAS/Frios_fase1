@@ -9,10 +9,10 @@
 
     try {
         if (typeof Vue === 'undefined') {
-            alert("FATAL: Vue.js is undefined!");
+            alert("FATAL: Vue.js no está definido!");
             throw new Error("Vue.js no se ha cargado. Verifique su conexión a internet o el CDN.");
         }
-        alert("DEBUG: Vue loaded. creating App...");
+        // alert("DEBUG: Vue cargado. creando App...");
         const { createApp } = Vue;
 
         const app = createApp({
@@ -181,58 +181,53 @@
                     }
                 },
 
-                recargarDatos() {
+                async recargarDatos() {
                     this.loading = true;
+                    try {
+                        // 1. Cargar Productos y Clientes en paralelo real
+                        const clienteParaFiltro = this.clienteTitular || undefined;
 
-                    // Cargar en paralelo verdadero usando Promise.all simulado
-                    let productosLoaded = false;
-                    let clientesLoaded = false;
+                        const [productos, clientes] = await Promise.all([
+                            serverCall('apiGetProductosConStock', clienteParaFiltro),
+                            serverCall('apiGetClientes')
+                        ]);
 
-                    const checkComplete = () => {
-                        if (productosLoaded && clientesLoaded) {
-                            this.loading = false;
-                        }
-                    };
+                        this.productos = productos;
+                        this.clientes = clientes;
 
-                    // 1. Cargar Productos filtrados por cliente titular (si existe)
-                    const clienteParaFiltro = this.clienteTitular || undefined;
-                    google.script.run.withSuccessHandler(res => {
-                        this.productos = res;
-                        productosLoaded = true;
-                        checkComplete();
-                    }).apiGetProductosConStock(clienteParaFiltro);
-
-                    // 2. Cargar Clientes con Info de Contratos (en paralelo)
-                    google.script.run.withSuccessHandler(res => {
-                        this.clientes = res;
-                        clientesLoaded = true;
-                        checkComplete();
-                    }).apiGetClientes();
+                    } catch (e) {
+                        console.error("Error cargando datos:", e);
+                        alert("Error de conexión al recargar datos: " + e);
+                    } finally {
+                        this.loading = false;
+                    }
                 },
 
                 // ==========================================
                 // 2. LÓGICA DEL DASHBOARD
                 // ==========================================
-                cargarDashboard() {
+                async cargarDashboard() {
                     if (!this.dashboardCliente) return;
 
                     this.loading = true;
                     this.mensajeCarga = "Analizando estado de cuenta...";
                     this.dashboardData = null;
 
-                    google.script.run
-                        .withSuccessHandler(res => {
-                            this.loading = false;
-                            // FIX: Controller ya devuelve objeto, no necesitamos JSON.parse
+                    try {
+                        const res = await serverCall('apiGetDashboardData', this.dashboardCliente);
 
-                            if (res.success) {
-                                this.dashboardData = res;
-                            } else {
-                                alert("Aviso: " + res.error); // Mostrar error pero no romper
-                                this.dashboardData = res; // Mostrar lo que haya llegado
-                            }
-                        })
-                        .apiGetDashboardData(this.dashboardCliente);
+                        if (res.success) {
+                            this.dashboardData = res;
+                        } else {
+                            alert("Aviso: " + res.error);
+                            this.dashboardData = res;
+                        }
+                    } catch (e) {
+                        console.error("Error Dashboard:", e);
+                        alert("Error cargando dashboard: " + e);
+                    } finally {
+                        this.loading = false;
+                    }
                 },
 
                 // ==========================================
@@ -738,10 +733,10 @@
             mounted() { this.iniciarApp(); }
         });
 
-        alert("DEBUG: App created. Mounting...");
+        // alert("DEBUG: App creada. Montando...");
         app.mount('#app');
-        alert("DEBUG: App Mounted!");
+        // alert("DEBUG: App Montada!");
     } catch (e) {
-        alert("CRITICAL ERROR Starting App: " + e.message + "\n" + e.stack);
+        alert("ERROR CRÍTICO Iniciando la App: " + e.message + "\n" + e.stack);
     }
 </script>
