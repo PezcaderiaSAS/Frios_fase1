@@ -215,7 +215,7 @@ function apiGetInventarioCliente(idCliente) {
 function apiGetProductosConStock(idCliente) {
   try {
     // CACHE CHECK
-    const cacheKey = 'STOCK_DATA_' + idCliente;
+    const cacheKey = 'STOCK_DATA_' + (idCliente || 'ALL');
     const cached = getFromCache(cacheKey);
     if (cached) return cached;
 
@@ -552,6 +552,9 @@ function apiGuardarMovimiento(payload) {
      clearCache('DASH_DATA_' + data.idCliente);
      clearCache('INV_DATA_' + data.idCliente);
      clearCache('STOCK_DATA_' + data.idCliente);
+     
+     // CRÍTICO: Invalidar caché global también
+     clearCache('STOCK_DATA_ALL');
   }
   return res;
 }
@@ -566,7 +569,11 @@ function apiGuardarProducto(form) {
    const res = registrarProducto(form);
    if (res.success) {
      clearCache('PRODUCTOS_DATA_ALL');
-     if (form.idCliente) clearCache('PRODUCTOS_DATA_' + form.idCliente);
+     clearCache('STOCK_DATA_ALL'); // Nueva caché global de stock
+     if (form.idCliente) {
+       clearCache('PRODUCTOS_DATA_' + form.idCliente);
+       clearCache('STOCK_DATA_' + form.idCliente);
+     }
    }
    return res;
 }
@@ -574,12 +581,28 @@ function apiGuardarProductosBatch(lista, idCliente) {
    const res = registrarProductosMasivo(lista, idCliente);
    if (res.success) {
       clearCache('PRODUCTOS_DATA_ALL');
+      clearCache('STOCK_DATA_ALL'); // Nueva caché global de stock
       if (idCliente) {
          clearCache('PRODUCTOS_DATA_' + idCliente);
-         clearCache('STOCK_DATA_' + idCliente); // Stock depende de lista de productos
+         clearCache('STOCK_DATA_' + idCliente);
       }
    }
    return res;
+}
+
+function apiActualizarProducto(form) {
+    // Validaciones básicas
+    if (!form.id || !form.idCliente) return { success: false, error: "Datos incompletos" };
+    
+    const res = actualizarProductoDB(form);
+    
+    if (res.success) {
+        clearCache('PRODUCTOS_DATA_ALL'); 
+        clearCache('STOCK_DATA_ALL');
+        clearCache('PRODUCTOS_DATA_' + form.idCliente);
+        clearCache('STOCK_DATA_' + form.idCliente);
+    }
+    return res;
 }
 
 /**

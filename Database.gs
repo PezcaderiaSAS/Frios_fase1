@@ -512,3 +512,50 @@ function actualizarClienteDB(data) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Actualiza la información de un producto existente
+ * NO PERMITE: Cambiar ID ni Cliente Propietario
+ */
+function actualizarProductoDB(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('DIM_PRODUCTOS');
+    const allData = sheet.getDataRange().getValues();
+    
+    // Buscar fila por ID de producto (Columna A)
+    // row[0] es ID
+    const rowIndex = allData.findIndex(r => String(r[0]) === String(data.id));
+    
+    if (rowIndex === -1) {
+      throw new Error("Producto no encontrado: " + data.id);
+    }
+    
+    // Validar integridad: No permitir cambiar dueño (idCliente)
+    // allData[rowIndex][1] es el idCliente actual
+    if (String(allData[rowIndex][1]) !== String(data.idCliente)) {
+       throw new Error("No se permite cambiar el cliente propietario del producto.");
+    }
+
+    // Actualizar columnas: Nombre(C), Peso(D), Empaque(E)
+    // Indices base 0: 2, 3, 4. 
+    // Sheets usa index base 1, así que fila es rowIndex + 1.
+    
+    sheet.getRange(rowIndex + 1, 3, 1, 3).setValues([[
+       data.nombre,
+       data.pesoNominal,
+       data.empaque
+    ]]);
+    
+    SpreadsheetApp.flush();
+    return { success: true, message: "Producto actualizado correctamente." };
+
+  } catch (e) {
+    return { success: false, error: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}

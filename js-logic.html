@@ -104,20 +104,200 @@
                           <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
                           <td class="text-end font-monospace">${p.stockCajas}</td>
                           <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
+                          <td class="text-end pe-3">
+                              <button class="btn btn-sm btn-light border" onclick="openEditProduct('${p.id}')" title="Editar">
+                                <i class="fas fa-pencil-alt text-secondary"></i>
+                              </button>
+                          </td>
                       </tr>`;
                     });
                 }
                 tbody.innerHTML = html;
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error: ${e.message}</td></tr>`;
             } finally {
                 loader.classList.add('d-none');
                 container.classList.remove('d-none');
             }
         }
 
+        // --- EDIT PRODUCT LOGIC ---
+        const modalEditEl = document.getElementById('modal-product-edit');
+        const modalEdit = new bootstrap.Modal(modalEditEl);
+        const btnUpdate = document.getElementById('btn-update-product');
+
+        // Exponer función globalmente para el onclick
+        window.openEditProduct = (id) => {
+            const prod = GLOBAL_STATE.productos.find(p => p.id === id);
+            if (!prod) return;
+
+            document.getElementById('edit-prod-id').value = prod.id;
+            document.getElementById('edit-prod-nombre').value = prod.nombre;
+            document.getElementById('edit-prod-peso').value = prod.pesoNominal;
+            document.getElementById('edit-prod-empaque').value = prod.empaque;
+
+            modalEdit.show();
+        };
+
+        if (btnUpdate) {
+            btnUpdate.onclick = async () => {
+                const id = document.getElementById('edit-prod-id').value;
+                const nombre = document.getElementById('edit-prod-nombre').value.trim();
+                const peso = parseFloat(document.getElementById('edit-prod-peso').value);
+                const empaque = document.getElementById('edit-prod-empaque').value;
+
+                // Necesitamos el idCliente (buscamos en global state)
+                const currentProd = GLOBAL_STATE.productos.find(p => p.id === id);
+                if (!currentProd) return alert("Error de consistencia.");
+
+                if (nombre.length < 3) return alert("Nombre muy corto.");
+                if (isNaN(peso) || peso <= 0) return alert("Peso inválido.");
+
+                const payload = {
+                    id: id,
+                    idCliente: currentProd.idCliente,
+                    nombre: nombre,
+                    pesoNominal: peso,
+                    empaque: empaque
+                };
+
+                const originalText = btnUpdate.innerHTML;
+                btnUpdate.disabled = true;
+                btnUpdate.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+                try {
+                    const res = await serverCall('apiActualizarProducto', payload);
+                    if (res.success) {
+                        alert("Producto actualizado.");
+                        modalEdit.hide();
+                        loadData();
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                } catch (e) {
+                    alert("Error: " + e.message);
+                } finally {
+                    btnUpdate.disabled = false;
+                    btnUpdate.innerHTML = originalText;
+                }
+            };
+        }
+
         if (btnRefresh) btnRefresh.onclick = loadData;
         if (filterCli) filterCli.onchange = loadData;
+
+        // --- NUEVO PRODUCTO MASIVO LOGIC ---
+        const btnNew = document.getElementById('btn-new-product');
+        const modalEl = document.getElementById('modal-product');
+        const modal = new bootstrap.Modal(modalEl);
+        const btnSave = document.getElementById('btn-save-product');
+        const btnAddRow = document.getElementById('btn-add-row');
+        const tbodyBatch = document.getElementById('tbody-batch-products');
+
+        // Helpers de Tabla
+        const createRow = () => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="form-control form-control-sm inp-name" placeholder="Nombre..."></td>
+                <td><input type="number" step="0.01" class="form-control form-control-sm inp-weight" placeholder="0.00"></td>
+                <td>
+                    <select class="form-select form-select-sm inp-pack">
+                        <option value="Caja">Caja</option>
+                        <option value="Bulto">Bulto</option>
+                        <option value="Unidad">Unidad</option>
+                        <option value="Pallet">Pallet</option>
+                    </select>
+                </td>
+                <td class="text-center"><button class="btn btn-sm btn-link text-danger p-0 btn-del"><i class="fas fa-trash"></i></button></td>
+             `;
+            tr.querySelector('.btn-del').onclick = () => {
+                if (tbodyBatch.children.length > 1) tr.remove();
+                else {
+                    tr.querySelectorAll('input').forEach(i => i.value = ''); // Si es la ultima, solo limpiar
+                }
+            };
+            return tr;
+        };
+
+        if (btnNew) {
+            btnNew.onclick = async () => {
+                // 1. Cargar Clientes
+                const selModal = document.getElementById('prod-cliente');
+                try {
+                    const clientes = GLOBAL_STATE.clientes || await serverCall('apiGetClientes');
+                    let opts = '<option value="" disabled selected>Seleccione...</option>';
+                    clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
+                    selModal.innerHTML = opts;
+
+                    // 2. Pre-seleccionar filtro
+                    const currentFilter = filterCli.value;
+                    selModal.value = currentFilter || "";
+                    selModal.disabled = false; // Siempre editable salvo requerimiento estricto
+
+                    // 3. Reset Tabla
+                    tbodyBatch.innerHTML = '';
+                    tbodyBatch.appendChild(createRow()); // Fila inicial
+
+                    modal.show();
+                } catch (e) {
+                    alert("Error inicializando: " + e.message);
+                }
+            };
+        }
+
+        if (btnAddRow) {
+            btnAddRow.onclick = () => tbodyBatch.appendChild(createRow());
+        }
+
+        if (btnSave) {
+            btnSave.onclick = async () => {
+                const idCliente = document.getElementById('prod-cliente').value;
+                if (!idCliente) return alert("Debe seleccionar un cliente propietario.");
+
+                // Recolectar datos
+                const products = [];
+                let error = null;
+
+                tbodyBatch.querySelectorAll('tr').forEach((tr, idx) => {
+                    const nombre = tr.querySelector('.inp-name').value.trim();
+                    const peso = parseFloat(tr.querySelector('.inp-weight').value);
+                    const empaque = tr.querySelector('.inp-pack').value;
+
+                    // Ignorar filas vacías si hay otras válidas, pero si es la única y está vacía alertar
+                    if (!nombre && isNaN(peso)) return;
+
+                    if (nombre.length < 3) error = `Fila ${idx + 1}: Nombre muy corto.`;
+                    if (isNaN(peso) || peso <= 0) error = `Fila ${idx + 1}: Peso inválido.`;
+
+                    products.push({ nombre, pesoNominal: peso, empaque });
+                });
+
+                if (error) return alert(error);
+                if (products.length === 0) return alert("Ingrese al menos un producto.");
+
+                // Enviar
+                const originalText = btnSave.innerHTML;
+                btnSave.disabled = true;
+                btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+                try {
+                    const res = await serverCall('apiGuardarProductosBatch', products, idCliente);
+                    if (res.success) {
+                        alert(`✅ ${products.length} Productos creados exitosamente.`);
+                        modal.hide();
+                        // Refrescar si el filtro coincide
+                        if (!filterCli.value || filterCli.value === idCliente) loadData();
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                } catch (e) {
+                    alert("Error de conexión: " + e.message);
+                } finally {
+                    btnSave.disabled = false;
+                    btnSave.innerHTML = originalText;
+                }
+            };
+        }
 
         loadData();
     }
@@ -160,6 +340,10 @@
                 if (res.success) {
                     const pct = res.ocupacion.porcentaje;
                     const elPct = document.getElementById('dash-porcentaje');
+
+                    // Prevention of Race Condition: If view changed, stop.
+                    if (!elPct) return;
+
                     const elRing = elPct.parentElement.parentElement;
                     const numTotal = document.getElementById('dash-peso-total');
 
@@ -339,13 +523,35 @@
         btnAdd.onclick = addItemRow;
         btnSave.onclick = saveEntrada;
 
+        // --- NUEVO: LISTENER DE CAMBIO DE CLIENTE ---
+        selectCli.onchange = () => {
+            // Limpiar tabla al cambiar cliente
+            tbody.innerHTML = '';
+            // Agregar fila vacía (ahora filtrará por el nuevo cliente)
+            addItemRow();
+        };
+
         function addItemRow() {
+            const idClienteActual = selectCli.value;
             const tr = document.createElement('tr');
+
             let prodOpts = '<option value="" disabled selected>Seleccione...</option>';
-            GLOBAL_STATE.productos.forEach(p => prodOpts += `<option value="${p.id}" data-weight="${p.pesoNominal}">${p.nombre} (${p.empaque})</option>`);
+
+            if (idClienteActual) {
+                // FILTRAR PRODUCTOS POR CLIENTE
+                const productosFiltrados = GLOBAL_STATE.productos.filter(p => String(p.idCliente) === String(idClienteActual));
+
+                if (productosFiltrados.length === 0) {
+                    prodOpts = '<option value="" disabled selected>Sin productos registrados</option>';
+                } else {
+                    productosFiltrados.forEach(p => prodOpts += `<option value="${p.id}" data-weight="${p.pesoNominal}">${p.nombre} (${p.empaque})</option>`);
+                }
+            } else {
+                prodOpts = '<option value="" disabled selected>Seleccione Cliente Primero</option>';
+            }
 
             tr.innerHTML = `
-            <td class="ps-3"><select class="form-select form-select-sm prod-select">${prodOpts}</select></td>
+            <td class="ps-3 text-start"><select class="form-select form-select-sm prod-select">${prodOpts}</select></td>
             <td><input type="date" class="form-control form-control-sm fecha-venc"></td>
             <td><input type="number" step="0.1" class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis input-cajas" placeholder="0"></td>
             <td><input type="number" step="0.01" class="form-control form-control-sm fw-bold bg-success-subtle text-success input-peso" placeholder="0.00"></td>
@@ -356,6 +562,9 @@
             const box = tr.querySelector('.input-cajas');
             const wgt = tr.querySelector('.input-peso');
             const del = tr.querySelector('.btn-del');
+
+            // Si no hay cliente seleccionado, deshabilitar select de producto
+            if (!idClienteActual) sel.disabled = true;
 
             sel.onchange = () => {
                 const opt = sel.options[sel.selectedIndex];
