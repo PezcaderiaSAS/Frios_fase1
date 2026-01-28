@@ -849,3 +849,32 @@ function apiGenerarPDFFacturaDetallada(payload) {
     };
   }
 }
+
+/**
+ * API: Genera Reporte de Stock Actual por Cliente
+ */
+function apiGenerarReporteStock(idCliente) {
+  try {
+     // 1. Obtener Datos
+     const productos = apiGetProductosConStock(idCliente);
+     const clientes = apiGetClientes();
+     const cliente = clientes.find(c => String(c.id) === String(idCliente));
+     
+     if (!cliente) throw new Error("Cliente no encontrado");
+     
+     // 2. Ordenar Descendente por PESO (Mayor stock a menor)
+     productos.sort((a, b) => (parseFloat(b.stockPeso) || 0) - (parseFloat(a.stockPeso) || 0));
+     
+     // 3. Generar PDF
+     // Como no existe aún la funcion generarReporteStockPDF, la asumiremos en Service_PDF
+     const urlPdf = generarReporteStockPDF(cliente, productos);
+     
+     if (urlPdf.startsWith('Error')) throw new Error(urlPdf);
+     
+     return { success: true, pdfUrl: urlPdf };
+     
+  } catch (e) {
+    Logger.log("Error apiGenerarReporteStock: " + e);
+    return { success: false, error: e.toString() }; 
+  }
+}

@@ -95,7 +95,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
-            font-size: 16px;
+            font-size: 19px;
         }
 
         th {
@@ -103,7 +103,7 @@
             text-align: left;
             padding: 10px 8px;
             border-bottom: 2px solid var(--border-light);
-            font-size: 16px;
+            font-size: 19px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 700;
@@ -132,7 +132,7 @@
         .total-row {
             background-color: #e2e8f0 !important;
             font-weight: 800;
-            font-size: 19px;
+            font-size: 22px;
             border-top: 2px solid var(--primary-color);
             color: var(--primary-color);
         }
@@ -231,10 +231,10 @@
     <table>
         <thead>
             <tr>
-                <th width="50%">SKU / Producto</th>
+                <th width="40%">SKU / Producto</th>
                 <th width="15%" class="num">Cajas</th>
                 <th width="15%" class="num">Peso (KG)</th>
-                <th width="20%" class="num">Saldo Post</th>
+                <th width="30%" class="num">Saldo Post (Cajam / Kg)</th>
             </tr>
         </thead>
         <tbody>
@@ -248,15 +248,13 @@
                var empaqueProd = item.empaque || 'Estándar';
                var loteProd = item.lote || '-';
                var vencProd = item.fechaVencimiento ? new Date(item.fechaVencimiento).toLocaleDateString('es-CO') : '--';
-               var saldo = item.stockRestante || '-';
+               var saldoKg = item.stockRestante || '-';
+               var saldoCajas = item.stockRestanteCajas || '-';
             ?>
             <tr>
                 <td>
                     <div class="fw-bold">
                         <?= nombreProd ?>
-                    </div>
-                    <div style="font-size: 11px; color:#64748b;">
-                        <?= empaqueProd ?>
                     </div>
                 </td>
                 <td class="num">
@@ -266,7 +264,12 @@
                     <?= displayPeso.toFixed(2) ?>
                 </td>
                 <td class="num <?= colorClass ?>">
-                    <?= saldo ?>
+                    <div>
+                        <?= saldoCajas ?> Cj
+                    </div>
+                    <div>
+                        <?= saldoKg ?> Kg
+                    </div>
                 </td>
             </tr>
             <? } ?>

@@ -158,17 +158,21 @@ function registrarMovimiento(data) {
                 inv.idProducto === producto.idProducto && String(inv.lote) === String(producto.lote)
             );
             
-            let stockPrevia = 0;
+            let stockPreviaPeso = 0;
+            let stockPreviaCajas = 0;
+            
             if (itemEnInventario) {
-                stockPrevia = itemEnInventario.peso;
+                stockPreviaPeso = itemEnInventario.peso;
+                stockPreviaCajas = itemEnInventario.cajas;
             }
             
-            // Suma Algebraica: pesoKg es positivo en ENTRADA, negativo en SALIDA
-            // Saldo Post = Stock Anterior + Movimiento Actual
-            const nuevoSaldo = stockPrevia + Number(producto.pesoKg);
+            // Suma Algebraica: cantidadCajas/pesoKg es positivo en ENTRADA, negativo en SALIDA
+            const nuevoSaldoPeso = stockPreviaPeso + Number(producto.pesoKg);
+            const nuevoSaldoCajas = stockPreviaCajas + Number(producto.cantidadCajas);
             
             // Añadir al objeto producto (que está en datosParaPDF.items)
-            producto.stockRestante = Math.max(0, nuevoSaldo).toFixed(2);
+            producto.stockRestante = Math.max(0, nuevoSaldoPeso).toFixed(2);
+            producto.stockRestanteCajas = Math.max(0, nuevoSaldoCajas).toFixed(1);
         });
         
     } catch (errStock) {

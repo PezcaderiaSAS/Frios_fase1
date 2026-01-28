@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Stock | ColdChain Pro</title>
+    <style>
+        :root {
+            --primary-color: #1a237e;
+            --text-main: #2c3e50;
+            --border-light: #e0e0e0;
+        }
+
+        @page {
+            size: letter portrait;
+            margin: 1.5cm;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-main);
+            font-size: 12px;
+        }
+
+        .header {
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            margin: 0;
+            font-size: 24px;
+            text-transform: uppercase;
+        }
+
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-light);
+        }
+
+        .meta-item label {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .meta-item span {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        th {
+            background: #f1f5f9;
+            padding: 10px;
+            text-align: left;
+            text-transform: uppercase;
+            color: #475569;
+            font-weight: 700;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .num {
+            text-align: right;
+            font-family: 'Consolas', monospace;
+            font-weight: 600;
+        }
+
+        .total-row {
+            background-color: #e2e8f0 !important;
+            font-weight: 800;
+            font-size: 13px;
+            border-top: 2px solid var(--primary-color);
+        }
+
+        .text-green {
+            color: #166534;
+        }
+
+        .text-gray {
+            color: #9ca3af;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 9px;
+            color: #94a3b8;
+            padding-top: 10px;
+            border-top: 1px dashed #e2e8f0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Reporte de Inventario</h1>
+        <div style="text-align: right; color: #64748b;">
+            <div style="font-size: 10px; font-weight: 700;">FECHA DE CORTE</div>
+            <div>
+                <?= new Date(fecha).toLocaleDateString('es-CO') ?>
+            </div>
+        </div>
+    </div>
+
+    <div class="meta-info">
+        <div class="meta-item">
+            <label>Cliente</label>
+            <span>
+                <?= cliente.nombre ?>
+            </span>
+        </div>
+        <div class="meta-item">
+            <label>NIT / ID</label>
+            <span style="font-family: 'Consolas', monospace;">
+                <?= cliente.nit || cliente.id ?>
+            </span>
+        </div>
+        <div class="meta-item">
+            <label>Total Items</label>
+            <span>
+                <?= productos.length ?> Referencias
+            </span>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th width="15%">ID</th>
+                <th width="40%">Producto</th>
+                <th width="15%">Empaque</th>
+                <th width="12%" class="num">Cajas</th>
+                <th width="13%" class="num">Stock (Kg)</th>
+                <th width="10%" class="num">Pos</th>
+            </tr>
+        </thead>
+        <tbody>
+            <? 
+            var totalCajas = 0;
+            var totalPeso = 0;
+            for(var i=0; i<productos.length; i++) { 
+                var p = productos[i];
+                var cajas = parseFloat(p.stockCajas) || 0;
+                var peso = parseFloat(p.stockPeso) || 0;
+                totalCajas += cajas;
+                totalPeso += peso;
+                var posiciones = peso / 800; // 1 Posición = 800 Kg
+                var colorClass = peso > 0 ? 'text-green' : 'text-gray';
+            ?>
+            <tr>
+                <td style="color: #64748b; font-size: 10px;">
+                    <?= p.id ?>
+                </td>
+                <td style="font-weight: 600;">
+                    <?= p.nombre ?>
+                </td>
+                <td>
+                    <?= p.empaque ?>
+                </td>
+                <td class="num">
+                    <?= cajas.toFixed(2) ?>
+                </td>
+                <td class="num <?= colorClass ?>">
+                    <?= peso.toFixed(2) ?>
+                </td>
+                <td class="num">
+                    <?= posiciones.toFixed(2) ?>
+                </td>
+            </tr>
+            <? } ?>
+            <tr class="total-row">
+                <td colspan="3" style="text-align: right; padding-right: 20px;">TOTAL GENERAL</td>
+                <td class="num">
+                    <?= totalCajas.toFixed(2) ?>
+                </td>
+                <td class="num">
+                    <?= totalPeso.toFixed(2) ?> Kg
+                </td>
+                <td class="num">
+                    <?= (totalPeso / 800).toFixed(2) ?>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Generado automáticamente por ColdChain Pro WMS | Página 1 de 1
+    </div>
+</body>
+
+</html>

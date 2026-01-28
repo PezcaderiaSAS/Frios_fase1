@@ -69,6 +69,7 @@
         const loader = document.getElementById('loading-products');
         const container = document.getElementById('products-container');
         const btnRefresh = document.getElementById('btn-refresh-products');
+        const btnReportStock = document.getElementById('btn-report-stock');
         const filterCli = document.getElementById('filter-products-client');
 
         // Cargar Clientes para Filtro
@@ -95,6 +96,11 @@
                 let html = '';
                 if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
                 else {
+                    // Ordenar descendente por PESO si hay filtro de cliente
+                    if (idCliente) {
+                        data.sort((a, b) => (parseFloat(b.stockPeso) || 0) - (parseFloat(a.stockPeso) || 0));
+                    }
+
                     data.forEach(p => {
                         const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
                         html += `<tr>
@@ -185,6 +191,31 @@
 
         if (btnRefresh) btnRefresh.onclick = loadData;
         if (filterCli) filterCli.onchange = loadData;
+
+        if (btnReportStock) {
+            btnReportStock.onclick = async () => {
+                const idCliente = filterCli.value;
+                if (!idCliente) return alert("Por favor seleccione un cliente para generar el reporte.");
+
+                const originalText = btnReportStock.innerHTML;
+                btnReportStock.disabled = true;
+                btnReportStock.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+                try {
+                    const res = await serverCall('apiGenerarReporteStock', idCliente);
+                    if (res.success && res.pdfUrl) {
+                        window.open(res.pdfUrl, '_blank');
+                    } else {
+                        alert("Error generando reporte: " + (res.error || "Desconocido"));
+                    }
+                } catch (e) {
+                    alert("Error de conexión: " + e.message);
+                } finally {
+                    btnReportStock.disabled = false;
+                    btnReportStock.innerHTML = originalText;
+                }
+            };
+        }
 
         // --- NUEVO PRODUCTO MASIVO LOGIC ---
         const btnNew = document.getElementById('btn-new-product');
