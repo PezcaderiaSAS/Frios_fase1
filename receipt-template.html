@@ -23,7 +23,7 @@
             color: var(--text-main);
             margin: 0;
             padding: 0;
-            font-size: 11px;
+            font-size: 14px;
             line-height: 1.3;
         }
 
@@ -38,7 +38,7 @@
 
         .logo-area h1 {
             margin: 0;
-            font-size: 22px;
+            font-size: 26px;
             color: var(--primary-color);
             letter-spacing: -0.5px;
             text-transform: uppercase;
@@ -50,7 +50,7 @@
             border-radius: 4px;
             font-weight: 800;
             text-transform: uppercase;
-            font-size: 11px;
+            font-size: 14px;
             color: white;
             letter-spacing: 0.5px;
         }
@@ -76,7 +76,7 @@
 
         .info-item label {
             display: block;
-            font-size: 9px;
+            font-size: 11px;
             text-transform: uppercase;
             color: #7f8c8d;
             font-weight: 700;
@@ -86,7 +86,7 @@
 
         .info-item span {
             font-weight: 700;
-            font-size: 12px;
+            font-size: 16px;
             color: #1e293b;
             display: block;
         }
@@ -95,7 +95,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
-            font-size: 10px;
+            font-size: 16px;
         }
 
         th {
@@ -103,7 +103,7 @@
             text-align: left;
             padding: 10px 8px;
             border-bottom: 2px solid var(--border-light);
-            font-size: 10px;
+            font-size: 16px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 700;
@@ -132,7 +132,7 @@
         .total-row {
             background-color: #e2e8f0 !important;
             font-weight: 800;
-            font-size: 12px;
+            font-size: 19px;
             border-top: 2px solid var(--primary-color);
             color: var(--primary-color);
         }
@@ -153,7 +153,7 @@
             border-top: 1px solid #94a3b8;
             text-align: center;
             padding-top: 8px;
-            font-size: 10px;
+            font-size: 12px;
             color: #64748b;
         }
 
@@ -161,7 +161,7 @@
             position: fixed;
             bottom: 0;
             width: 100%;
-            font-size: 9px;
+            font-size: 11px;
             color: #94a3b8;
             text-align: center;
             border-top: 1px dashed #e2e8f0;
@@ -224,19 +224,17 @@
         </div>
         <div class="info-item">
             <label>Responsable</label>
-            <span style="font-size: 11px; font-weight: 400;">Operaciones ColdChain</span>
+            <span style="font-size: 13px; font-weight: 400;">Operaciones ColdChain</span>
         </div>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th width="40%">SKU / Producto</th>
-                <th width="12%">Lote</th>
-                <th width="12%">Vencimiento</th>
-                <th width="12%" class="num">Cajas</th>
-                <th width="12%" class="num">Peso (KG)</th>
-                <th width="12%" class="num">Saldo Post</th>
+                <th width="50%">SKU / Producto</th>
+                <th width="15%" class="num">Cajas</th>
+                <th width="15%" class="num">Peso (KG)</th>
+                <th width="20%" class="num">Saldo Post</th>
             </tr>
         </thead>
         <tbody>
@@ -257,15 +255,9 @@
                     <div class="fw-bold">
                         <?= nombreProd ?>
                     </div>
-                    <div style="font-size: 9px; color:#64748b;">
+                    <div style="font-size: 11px; color:#64748b;">
                         <?= empaqueProd ?>
                     </div>
-                </td>
-                <td style="font-family:'Consolas', monospace;">
-                    <?= loteProd ?>
-                </td>
-                <td>
-                    <?= vencProd ?>
                 </td>
                 <td class="num">
                     <?= displayCajas ?>

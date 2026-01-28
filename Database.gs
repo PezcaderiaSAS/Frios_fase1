@@ -152,25 +152,23 @@ function registrarMovimiento(data) {
         datosParaPDF.totalStockPeso = stockPeso.toFixed(2);
         
         // NUEVO: Calcular stock restante por producto/lote
-        data.productos.forEach(producto => {
+        // Iteramos sobre datosParaPDF.items que son los objetos que realmente se pintan en el HTML
+        datosParaPDF.items.forEach(producto => {
             const itemEnInventario = inventarioActual.find(inv => 
                 inv.idProducto === producto.idProducto && String(inv.lote) === String(producto.lote)
             );
             
-            let stockRestante = 0;
+            let stockPrevia = 0;
             if (itemEnInventario) {
-                stockRestante = itemEnInventario.peso;
+                stockPrevia = itemEnInventario.peso;
             }
             
-            // Aplicar este movimiento específico
-            if (data.tipo === 'ENTRADA') {
-                stockRestante += Number(producto.pesoKg);
-            } else {
-                stockRestante -= Number(producto.pesoKg);
-            }
+            // Suma Algebraica: pesoKg es positivo en ENTRADA, negativo en SALIDA
+            // Saldo Post = Stock Anterior + Movimiento Actual
+            const nuevoSaldo = stockPrevia + Number(producto.pesoKg);
             
-            // Añadir al objeto producto
-            producto.stockRestante = Math.max(0, stockRestante).toFixed(2);
+            // Añadir al objeto producto (que está en datosParaPDF.items)
+            producto.stockRestante = Math.max(0, nuevoSaldo).toFixed(2);
         });
         
     } catch (errStock) {

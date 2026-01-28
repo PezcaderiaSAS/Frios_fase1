@@ -550,9 +550,14 @@
                 prodOpts = '<option value="" disabled selected>Seleccione Cliente Primero</option>';
             }
 
+            // Calc Vencimiento (+1 Mes Default)
+            const d = new Date();
+            d.setMonth(d.getMonth() + 1);
+            const nextMonthISO = d.toISOString().split('T')[0];
+
             tr.innerHTML = `
             <td class="ps-3 text-start"><select class="form-select form-select-sm prod-select">${prodOpts}</select></td>
-            <td><input type="date" class="form-control form-control-sm fecha-venc"></td>
+            <td><input type="date" class="form-control form-control-sm fecha-venc" value="${nextMonthISO}"></td>
             <td><input type="number" step="0.1" class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis input-cajas" placeholder="0"></td>
             <td><input type="number" step="0.01" class="form-control form-control-sm fw-bold bg-success-subtle text-success input-peso" placeholder="0.00"></td>
             <td class="text-center"><button class="btn btn-sm btn-link text-danger btn-del"><i class="fas fa-trash"></i></button></td>`;
@@ -680,6 +685,10 @@
         const btnSave = document.getElementById('salida-btn-save');
         let CART = [];
 
+        // Init Fecha
+        const dateInput = document.getElementById('salida-fecha');
+        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
         try {
             const [clientes, productos] = await Promise.all([
                 serverCall('apiGetClientes'),
@@ -785,9 +794,13 @@
         btnSave.onclick = async () => {
             if (CART.length === 0) return alert("El carrito está vacío.");
             const pay = {
-                tipo: 'SALIDA', idCliente: selectCli.value, nombreCliente: selectCli.options[selectCli.selectedIndex].text,
+                tipo: 'SALIDA',
+                idCliente: selectCli.value,
+                nombreCliente: selectCli.options[selectCli.selectedIndex].text,
                 docReferencia: document.getElementById('salida-doc').value || 'Despacho',
-                totalCajas: CART.reduce((a, b) => a + b.salidaCajas, 0), totalPeso: CART.reduce((a, b) => a + b.salidaKg, 0),
+                fecha: document.getElementById('salida-fecha').value,
+                totalCajas: CART.reduce((a, b) => a + b.salidaCajas, 0),
+                totalPeso: CART.reduce((a, b) => a + b.salidaKg, 0),
                 productos: CART.map(i => ({ idProducto: i.idProducto, lote: i.lote, cantidadCajas: i.salidaCajas * -1, pesoKg: i.salidaKg * -1 }))
             };
             btnSave.disabled = true; btnSave.textContent = 'Procesando...';
