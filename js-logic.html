@@ -70,6 +70,7 @@
         const container = document.getElementById('products-container');
         const btnRefresh = document.getElementById('btn-refresh-products');
         const btnReportStock = document.getElementById('btn-report-stock');
+        const btnSort = document.getElementById('btn-sort-weight');
         const filterCli = document.getElementById('filter-products-client');
 
         // Cargar Clientes para Filtro
@@ -85,6 +86,30 @@
             alert("Error cargando clientes: " + e.message);
         }
 
+        function renderTable(data) {
+            let html = '';
+            if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
+            else {
+                data.forEach(p => {
+                    const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
+                    html += `<tr>
+                      <td class="ps-4 font-monospace small text-muted">${p.id}</td>
+                      <td class="fw-bold text-dark">${p.nombre}</td>
+                      <td><span class="badge bg-light text-dark border fw-normal">${p.idCliente}</span></td>
+                      <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
+                      <td class="text-end font-monospace">${p.stockCajas}</td>
+                      <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
+                      <td class="text-end pe-3">
+                          <button class="btn btn-sm btn-light border" onclick="openEditProduct('${p.id}')" title="Editar">
+                            <i class="fas fa-pencil-alt text-secondary"></i>
+                          </button>
+                      </td>
+                  </tr>`;
+                });
+            }
+            tbody.innerHTML = html;
+        }
+
         async function loadData() {
             const idCliente = filterCli.value;
             loader.classList.remove('d-none');
@@ -93,32 +118,8 @@
             try {
                 const data = await serverCall('apiGetProductosConStock', idCliente);
                 GLOBAL_STATE.productos = data;
-                let html = '';
-                if (!data || data.length === 0) html = '<tr><td colspan="6" class="text-center text-muted py-4">Sin datos</td></tr>';
-                else {
-                    // Ordenar descendente por PESO si hay filtro de cliente
-                    if (idCliente) {
-                        data.sort((a, b) => (parseFloat(b.stockPeso) || 0) - (parseFloat(a.stockPeso) || 0));
-                    }
-
-                    data.forEach(p => {
-                        const badge = p.stockPeso > 0 ? 'bg-primary-subtle text-primary' : 'bg-light text-muted';
-                        html += `<tr>
-                          <td class="ps-4 font-monospace small text-muted">${p.id}</td>
-                          <td class="fw-bold text-dark">${p.nombre}</td>
-                          <td><span class="badge bg-light text-dark border fw-normal">${p.idCliente}</span></td>
-                          <td>${p.empaque} <span class="small text-muted">(${p.pesoNominal}kg)</span></td>
-                          <td class="text-end font-monospace">${p.stockCajas}</td>
-                          <td class="text-end pe-4"><span class="badge ${badge} fs-6">${p.stockPeso}</span></td>
-                          <td class="text-end pe-3">
-                              <button class="btn btn-sm btn-light border" onclick="openEditProduct('${p.id}')" title="Editar">
-                                <i class="fas fa-pencil-alt text-secondary"></i>
-                              </button>
-                          </td>
-                      </tr>`;
-                    });
-                }
-                tbody.innerHTML = html;
+                // Nota: El backend ya devuelve ordenado por peso, pero renderTable lo pinta directo.
+                renderTable(data);
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error: ${e.message}</td></tr>`;
             } finally {
@@ -191,6 +192,18 @@
 
         if (btnRefresh) btnRefresh.onclick = loadData;
         if (filterCli) filterCli.onchange = loadData;
+        if (btnSort) {
+            btnSort.onclick = () => {
+                if (!GLOBAL_STATE.productos || GLOBAL_STATE.productos.length === 0) return;
+                // Ordenar GLOBAL_STATE y re-renderizar
+                GLOBAL_STATE.productos.sort((a, b) => (parseFloat(b.stockPeso) || 0) - (parseFloat(a.stockPeso) || 0));
+                renderTable(GLOBAL_STATE.productos);
+                // Feedback visual simple
+                const icon = btnSort.querySelector('i');
+                icon.className = 'fas fa-check text-success me-2';
+                setTimeout(() => icon.className = 'fas fa-sort-amount-down me-2', 1000);
+            };
+        }
 
         if (btnReportStock) {
             btnReportStock.onclick = async () => {

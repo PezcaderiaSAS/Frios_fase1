@@ -237,11 +237,12 @@ function apiGetProductosConStock(idCliente) {
     stockMap[idProd].peso += peso;
   });
 
+  // Ordenar descendente por PESO
   const result = productosBase.map(p => ({
     ...p,
     stockCajas: (stockMap[p.id]?.cajas || 0).toFixed(1),
     stockPeso: (stockMap[p.id]?.peso || 0).toFixed(2)
-  }));
+  })).sort((a, b) => parseFloat(b.stockPeso) - parseFloat(a.stockPeso));
   
   saveToCache(cacheKey, result, 1800); // 30 min
   return result;
