@@ -16,19 +16,13 @@
                         <!-- Injected by JS -->
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Documento Ref.</label>
-                    <input type="text" id="entrada-doc" class="form-control" placeholder="Ej: Remisión 123">
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label">Fecha Movimiento</label>
                     <input type="date" id="entrada-fecha" class="form-control">
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <div class="form-check form-switch pb-2">
-                        <input class="form-check-input" type="checkbox" role="switch" id="entrada-congelado" checked>
-                        <label class="form-check-label fw-semibold" for="entrada-congelado">Congelado</label>
-                    </div>
+                <div class="col-md-4">
+                    <label class="form-label">Documento Ref.</label>
+                    <input type="text" id="entrada-doc" class="form-control" placeholder="Ej: Remisión 123">
                 </div>
             </div>
 
@@ -37,10 +31,11 @@
                 <table class="table mb-0 align-middle">
                     <thead class="bg-light">
                         <tr>
-                            <th class="ps-3" style="width: 50%">Producto</th>
+                            <th class="ps-3" style="width: 35%">Producto</th>
                             <th style="width: 15%">Vencimiento</th>
                             <th style="width: 12%">Cajas</th>
                             <th style="width: 15%">Peso (Kg)</th>
+                            <th style="width: 15%" class="text-center">Congelado</th>
                             <th style="width: 8%"></th>
                         </tr>
                     </thead>

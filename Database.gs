@@ -192,14 +192,14 @@ function registrarMovimiento(data) {
     headerSheet.appendRow([
       idMovimiento,
       data.tipo,
-      new Date(),
+      new Date(data.fecha + 'T12:00:00'),
       data.idCliente,
       data.docReferencia || 'S/N',
       data.totalCajas,
       data.totalPeso,
       urlPdf, 
       Session.getActiveUser().getEmail(),
-      JSON.stringify({ esCongelado: data.esCongelado }) // Columna 10: Metadata
+      JSON.stringify({}) // Columna 10: Metadata Header (Deprecado esCongelado global)
     ]);
 
     // 5. Guardar Detalles
@@ -211,7 +211,8 @@ function registrarMovimiento(data) {
         '', 
         p.fechaVencimiento || '', 
         p.cantidadCajas, 
-        p.pesoKg
+        p.pesoKg,
+        JSON.stringify({ esCongelado: p.esCongelado }) // Columna 9: Metadata Detalle
     ]);
 
     if (detallesRows.length > 0) {

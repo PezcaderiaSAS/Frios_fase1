@@ -79,9 +79,11 @@
             let opts = '<option value="">Todos los Clientes</option>';
             clientes.forEach(c => opts += `<option value="${c.id}">${c.nombre}</option>`);
 
-            const current = filterCli.value;
-            filterCli.innerHTML = opts;
-            if (current) filterCli.value = current;
+            if (filterCli) {
+                const current = filterCli.value;
+                filterCli.innerHTML = opts;
+                if (current) filterCli.value = current;
+            }
 
             // CHECK EDIT MODE
             if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'ENTRADA') {
@@ -567,21 +569,21 @@
             document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
             document.getElementById('entrada-fecha-hoy').textContent = new Date().toLocaleDateString();
 
-            // Default Frozen Check
-            if (document.getElementById('entrada-congelado')) document.getElementById('entrada-congelado').checked = true;
+            // Default Frozen Check REMOVED (Now per item)
+            // if (document.getElementById('entrada-congelado')) document.getElementById('entrada-congelado').checked = true;
 
             // CHECK EDIT MODE
+            // CHECK EDIT MODE
             if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'ENTRADA') {
-                setupEditEntradaMode(GLOBAL_STATE.tempEditData);
+                if (typeof loadEditEntrada === 'function') loadEditEntrada(GLOBAL_STATE.tempEditData);
             } else {
                 addItemRow();
+                btnAdd.onclick = addItemRow;
+                btnSave.onclick = saveEntrada;
             }
         } catch (e) {
             showToast("Error cargando datos iniciales: " + e.message, 'danger');
         }
-
-        btnAdd.onclick = addItemRow;
-        btnSave.onclick = saveEntrada;
 
         // --- NUEVO: LISTENER DE CAMBIO DE CLIENTE ---
         selectCli.onchange = () => {
@@ -620,6 +622,7 @@
             <td><input type="date" class="form-control form-control-sm fecha-venc" value="${nextMonthISO}"></td>
             <td><input type="number" step="0.1" class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis input-cajas" placeholder="0"></td>
             <td><input type="number" step="0.01" class="form-control form-control-sm fw-bold bg-success-subtle text-success input-peso" placeholder="0.00"></td>
+            <td class="text-center"><div class="form-check form-switch" style="min-height:auto; margin-bottom:0;"><input class="form-check-input input-frozen mx-auto" type="checkbox" role="switch" checked></div></td>
             <td class="text-center"><button class="btn btn-sm btn-link text-danger btn-del"><i class="fas fa-trash"></i></button></td>`;
             tbody.appendChild(tr);
 
@@ -696,7 +699,8 @@
                 const c = parseFloat(tr.querySelector('.input-cajas').value);
                 const p = parseFloat(tr.querySelector('.input-peso').value);
                 const v = tr.querySelector('.fecha-venc').value;
-                if (pid && c > 0 && p > 0) rows.push({ idProducto: pid, cantidadCajas: c, pesoKg: p, fechaVencimiento: v, lote: 0 });
+                const f = tr.querySelector('.input-frozen').checked; // Item Level
+                if (pid && c > 0 && p > 0) rows.push({ idProducto: pid, cantidadCajas: c, pesoKg: p, fechaVencimiento: v, lote: 0, esCongelado: f });
             });
             const isUpdate = btnSave.dataset.updateId;
             const method = isUpdate ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
@@ -710,7 +714,7 @@
                 fecha: document.getElementById('entrada-fecha').value,
                 totalCajas: parseFloat(document.getElementById('entrada-total-cajas').textContent),
                 totalPeso: parseFloat(document.getElementById('entrada-total-peso').textContent.replace(' Kg', '')),
-                esCongelado: document.getElementById('entrada-congelado').checked, // NEW FIELD
+                // esCongelado Removed from Header
                 productos: rows
             };
 
@@ -1083,11 +1087,11 @@
     }
 
     function loadEditEntrada(data) {
-        // 1. Switch View
-        document.querySelectorAll('.view-section').forEach(el => el.classList.add('d-none'));
-        document.getElementById('view-entrada').classList.remove('d-none');
-        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
-        document.querySelector('[onclick*="view-entrada"]').classList.add('active');
+        // 1. Switch View Logic REMOVED (Handled by loadView)
+        // document.querySelectorAll('.view-section').forEach...
+        // document.getElementById('view-entrada').classList.remove('d-none');
+        // document.querySelectorAll('.nav-link').forEach...
+        // document.querySelector('[onclick*="view-entrada"]').classList.add('active');
 
         // 2. Populate Header
         const selCli = document.getElementById('entrada-cliente');
@@ -1115,6 +1119,7 @@
                 <td><input type="date" class="form-control form-control-sm inp-venc" value="${item.fechaVencimiento}"></td>
                 <td><input type="number" class="form-control form-control-sm inp-qty" value="${item.cantidadCajas}" placeholder="0.0"></td>
                 <td><div class="input-group input-group-sm"><input type="number" class="form-control fw-bold inp-peso" value="${item.pesoKg}" placeholder="0.00"><span class="input-group-text">kg</span></div></td>
+                <td class="text-center"><div class="form-check form-switch d-flex justify-content-center"><input class="form-check-input inp-frozen" type="checkbox" ${item.esCongelado !== false ? 'checked' : ''}></div></td>
                 <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 btn-del"><i class="fas fa-trash"></i></button></td>
             `;
             tbody.appendChild(tr);
@@ -1156,8 +1161,11 @@
             btnSave.onclick = saveEntrada; // Restaurar función original
             btnSave.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Entrada';
             btnSave.classList.replace('btn-primary', 'btn-success');
+            btnSave.disabled = false; // Ensure enabled
             btnCancel.classList.add('d-none');
-            document.getElementById('view-movements-link').click(); // Volver a historial
+            const link = document.getElementById('view-movements-link');
+            if (link) link.click(); // Volver a historial
+            else loadView('view-movements'); // Fallback if link not found
         };
 
         btnSave.innerHTML = '<i class="fas fa-sync me-2"></i>Actualizar Movimiento';
@@ -1175,9 +1183,10 @@
                 const venc = tr.querySelector('.inp-venc').value;
                 const cajas = parseFloat(tr.querySelector('.inp-qty').value);
                 const peso = parseFloat(tr.querySelector('.inp-peso').value);
+                const frozen = tr.querySelector('.inp-frozen').checked;
 
                 if (!idProd || !cajas || !peso) return alert("Complete todos los campos de los productos.");
-                productos.push({ idProducto: idProd, lote: lote, fechaVencimiento: venc, cantidadCajas: cajas, pesoKg: peso });
+                productos.push({ idProducto: idProd, lote: lote, fechaVencimiento: venc, cantidadCajas: cajas, pesoKg: peso, esCongelado: frozen });
             }
 
             const payload = {
@@ -1203,6 +1212,7 @@
                 }
             } catch (err) {
                 alert("Error de red: " + err.message);
+                console.error(err);
             } finally {
                 btnSave.disabled = false;
             }
@@ -1217,11 +1227,11 @@
     }
 
     function loadEditSalida(data) {
-        // 1. Switch View
-        document.querySelectorAll('.view-section').forEach(el => el.classList.add('d-none'));
-        document.getElementById('view-salida').classList.remove('d-none');
-        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
-        document.querySelector('[onclick*="view-salida"]').classList.add('active');
+        // 1. Switch View Logic REMOVED (Handled by loadView)
+        // document.querySelectorAll('.view-section').forEach...
+        // document.getElementById('view-salida').classList.remove('d-none');
+        // document.querySelectorAll('.nav-link').forEach...
+        // document.querySelector('[onclick*="view-salida"]').classList.add('active');
 
         // 2. Populate Header
         const selCli = document.getElementById('salida-cliente');

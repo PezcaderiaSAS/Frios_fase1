@@ -274,7 +274,9 @@ function apiGetMovimientoDetalle(idMovimiento) {
       lote: r[3],
       fechaVencimiento: r[5] ? new Date(r[5]).toISOString().split('T')[0] : '',
       cantidadCajas: Math.abs(r[6]), // Convertir a absoluto para el formulario
-      pesoKg: Math.abs(r[7])        
+      cantidadCajas: Math.abs(r[6]), // Convertir a absoluto para el formulario
+      pesoKg: Math.abs(r[7]),
+      esCongelado: r[8] ? (JSON.parse(r[8]).esCongelado) : undefined // Return item status
     }));
 
   return {
@@ -284,9 +286,9 @@ function apiGetMovimientoDetalle(idMovimiento) {
       fecha: new Date(headerRow[2]).toISOString().split('T')[0],
       idCliente: headerRow[3],
       docReferencia: headerRow[4],
-      esCongelado: headerRow[9] ? (JSON.parse(headerRow[9]).esCongelado) : undefined
+      // esCongelado removed from header
     },
-    items: items
+    items: items // Items now contain esCongelado if parsed in map? No, need to update map above.
   };
   } catch (e) {
     throw e; // Relanzar para que el frontend lo maneje via withFailureHandler si se usa, o el caller lo capture
@@ -390,15 +392,15 @@ function apiActualizarMovimiento(payload) {
     // En array base 0: Fecha=2, Cliente=3, Ref=4, Cajas=5, Peso=6
     // OPTIMIZACION: Escribir en una sola linea
     sheetHeader.getRange(rowIndex + 1, 3, 1, 5).setValues([[
-      new Date(data.fecha),
+      new Date(data.fecha + 'T12:00:00'),
       data.idCliente,
       data.docReferencia,
       data.totalCajas,
       data.totalPeso
     ]]);
     
-    // Update Metadata (Col 10) separately to avoid overwriting PDF/User
-    sheetHeader.getRange(rowIndex + 1, 10).setValue(JSON.stringify({ esCongelado: data.esCongelado }));
+    // Update Metadata (Col 10): Deprecate global frozen status (Header)
+    sheetHeader.getRange(rowIndex + 1, 10).setValue(JSON.stringify({}));
     
     // 2. Borrar detalles viejos
     const details = sheetDetail.getDataRange().getValues();
@@ -419,7 +421,8 @@ function apiActualizarMovimiento(payload) {
         '', 
         p.fechaVencimiento || '', 
         Math.abs(p.cantidadCajas) * multiplicador, 
-        Math.abs(p.pesoKg) * multiplicador
+        Math.abs(p.pesoKg) * multiplicador,
+        JSON.stringify({ esCongelado: p.esCongelado }) // Columna 9: Metadata Detalle
     ]);
     
     if (nuevosDetalles.length > 0) {
@@ -447,8 +450,20 @@ function apiActualizarMovimiento(payload) {
     }));
     
     // Recalcular Stock Real para el PDF (Reutilizando lógica si es posible, o simplificada)
-    // NOTA: Para ser exactos deberíamos re-calcular todo el inventario, lo cual es costoso.
-    // Intentaremos obtener el inventario ACTUAL del cliente.
+    // Inicializar datos PDF por defecto antes del try para evitar undefined pointer
+    var datosParaPDF = {
+        id: data.id,
+        fecha: new Date(data.fecha + 'T12:00:00'),
+        cliente: nombreCliente,
+        tipo: data.tipo,
+        docReferencia: data.docReferencia,
+        items: itemsEnriquecidos, // Items básicos (sin stock aún)
+        totalCajas: data.totalCajas,
+        totalPeso: data.totalPeso,
+        totalStockCajas: "N/A",
+        totalStockPeso: "N/A"
+    };
+
     try {
         const inventarioActual = apiGetInventarioCliente(data.idCliente);
         const stockCajas = inventarioActual.reduce((acc, i) => acc + i.cajas, 0);
@@ -461,18 +476,11 @@ function apiActualizarMovimiento(payload) {
             p.stockRestanteCajas = invItem ? invItem.cajas.toFixed(1) : '0.0';
         });
 
-        var datosParaPDF = {
-            id: data.id,
-            fecha: new Date(data.fecha),
-            cliente: nombreCliente,
-            tipo: data.tipo,
-            docReferencia: data.docReferencia,
-            items: itemsEnriquecidos,
-            totalCajas: data.totalCajas,
-            totalPeso: data.totalPeso,
-            totalStockCajas: stockCajas.toFixed(1),
-            totalStockPeso: stockPeso.toFixed(2)
-        };
+        // Actualizar datos
+        datosParaPDF.items = itemsEnriquecidos;
+        datosParaPDF.totalStockCajas = stockCajas.toFixed(1);
+        datosParaPDF.totalStockPeso = stockPeso.toFixed(2);
+        
     } catch(errStock) {
         Logger.log("Error stock calc en update: " + errStock);
     }
@@ -490,10 +498,13 @@ function apiActualizarMovimiento(payload) {
     sheetHeader.getRange(rowIndex + 1, 8).setValue(urlPdf);
 
     // INVALIDAR CACHÉ
-    clearCache('DASH_DATA_' + data.idCliente);
-    clearCache('INV_DATA_' + data.idCliente);
-    clearCache('STOCK_DATA_' + data.idCliente);
-    clearCache('STOCK_DATA_ALL');
+    // INVALIDAR CACHÉ
+    try {
+        const cache = CacheService.getScriptCache();
+        cache.removeAll(['DASH_DATA_' + data.idCliente, 'INV_DATA_' + data.idCliente, 'STOCK_DATA_' + data.idCliente, 'STOCK_DATA_ALL']);
+    } catch (e) {
+        Logger.log("Error clearing cache: " + e);
+    }
 
     return { success: true, message: "Movimiento actualizado y PDF regenerado.", pdfUrl: urlPdf };
     
@@ -722,30 +733,14 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   const mapMovFecha = {};
   headers.slice(1).forEach(r => {
     if (String(r[3]) === String(idCliente)) {
-      const d = new Date(r[2]);
-      d.setHours(0,0,0,0);
-      mapMovFecha[r[0]] = d.getTime();
+      // FIX TIMEZONE: Use GMT to extract the original YYYY-MM-DD intentionally stored as UTC midnight
+      const fechaStr = Utilities.formatDate(new Date(r[2]), "GMT", "yyyy-MM-dd");
+      // Create local date at midnight from that string
+      const parts = fechaStr.split('-');
+      const d = new Date(parts[0], parts[1]-1, parts[2]); 
       
-      // REGLA DE NEGOCIO: Recargo Refrigeración
-      // Si es ENTRADA y esCongelado == false, se aplica recargo.
-      if (r[1] === 'ENTRADA') {
-          let esCongelado = true; // Default
-          // Column 9 (Index 9) holds JSON
-          if (r[9]) {
-              try { esCongelado = JSON.parse(r[9]).esCongelado !== false; } catch (e) {} 
-          }
-          if (!esCongelado) {
-              const peso = Number(r[6] || 0); // Index 6 = Total Weight (r[7] in base 1, wait. r is simple array.. check mapping)
-              // Header indices: 0:ID, 1:TIPO, 2:FECHA, 3:CLIENTE, 4:REF, 5:CAJAS, 6:PESO
-              // r in forEach is array of values.
-              // r[6] is Total Weight.
-              const recargo = peso * 500;
-              const dateMs = d.getTime();
-              // Store surcharge
-              if (!mapMovRecargos[dateMs]) mapMovRecargos[dateMs] = 0;
-              mapMovRecargos[dateMs] += recargo;
-          }
-      }
+      mapMovFecha[r[0]] = d.getTime();
+      // Recargo logic removed from header
     }
   });
   
@@ -759,12 +754,24 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
       // Acumular cambio en esa fecha
       const actual = mapCambios.get(fechaMs) || 0;
       mapCambios.set(fechaMs, actual + peso);
+
+      // REGLA: Recargo por item no congelado (Solo entradas, peso > 0)
+      if (peso > 0) {
+          let esCongelado = true;
+          if (r[8]) { // Columna 9 (Index 8)
+              try { esCongelado = JSON.parse(r[8]).esCongelado !== false; } catch(e){}
+          }
+          if (!esCongelado) {
+              if (!mapMovRecargos[fechaMs]) mapMovRecargos[fechaMs] = 0;
+              mapMovRecargos[fechaMs] += (peso * 500);
+          }
+      }
     }
   });
 
   // 3. Simulación Día a Día (Optimizada)
-  const start = new Date(fechaInicio); start.setHours(0,0,0,0);
-  const end = new Date(fechaFin); end.setHours(0,0,0,0);
+  const start = new Date(fechaInicio + 'T12:00:00'); start.setHours(0,0,0,0);
+  const end = new Date(fechaFin + 'T12:00:00'); end.setHours(0,0,0,0);
   const startMs = start.getTime();
   const endMs = end.getTime();
   
