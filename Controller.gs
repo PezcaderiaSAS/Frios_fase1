@@ -422,12 +422,76 @@ function apiActualizarMovimiento(payload) {
       sheetDetail.getRange(sheetDetail.getLastRow() + 1, 1, nuevosDetalles.length, nuevosDetalles[0].length).setValues(nuevosDetalles);
     }
     
+    // 4. REGENERAR PDF (CRÍTICO PARA EL USUARIO)
+    // Preparar datos para PDF
+    // Necesitamos nombres de productos y cliente.
+    const clientes = apiGetClientes();
+    const clienteObj = clientes.find(c => String(c.id) === String(data.idCliente));
+    const nombreCliente = clienteObj ? clienteObj.nombre : data.idCliente;
+
+    const productosDb = apiGetProductos();
+    const mapProductos = {};
+    productosDb.forEach(p => mapProductos[p.id] = { nombre: p.nombre, empaque: p.empaque });
+
+    const itemsEnriquecidos = data.productos.map(p => ({
+        ...p,
+        nombreProducto: mapProductos[p.idProducto]?.nombre || p.idProducto,
+        empaque: mapProductos[p.idProducto]?.empaque || 'Unidad',
+        // Calcular stock restante aproximado (Opcional, o traer lógica compleja)
+        stockRestante: "N/A", // Por ahora simplificado en edición
+        stockRestanteCajas: "N/A"
+    }));
+    
+    // Recalcular Stock Real para el PDF (Reutilizando lógica si es posible, o simplificada)
+    // NOTA: Para ser exactos deberíamos re-calcular todo el inventario, lo cual es costoso.
+    // Intentaremos obtener el inventario ACTUAL del cliente.
+    try {
+        const inventarioActual = apiGetInventarioCliente(data.idCliente);
+        const stockCajas = inventarioActual.reduce((acc, i) => acc + i.cajas, 0);
+        const stockPeso = inventarioActual.reduce((acc, i) => acc + i.peso, 0);
+        
+        // Items Enriquecidos con stock
+         itemsEnriquecidos.forEach(p => {
+            const invItem = inventarioActual.find(i => i.idProducto === p.idProducto && String(i.lote) === String(p.lote));
+            p.stockRestante = invItem ? invItem.peso.toFixed(2) : '0.00';
+            p.stockRestanteCajas = invItem ? invItem.cajas.toFixed(1) : '0.0';
+        });
+
+        var datosParaPDF = {
+            id: data.id,
+            fecha: new Date(data.fecha),
+            cliente: nombreCliente,
+            tipo: data.tipo,
+            docReferencia: data.docReferencia,
+            items: itemsEnriquecidos,
+            totalCajas: data.totalCajas,
+            totalPeso: data.totalPeso,
+            totalStockCajas: stockCajas.toFixed(1),
+            totalStockPeso: stockPeso.toFixed(2)
+        };
+    } catch(errStock) {
+        Logger.log("Error stock calc en update: " + errStock);
+    }
+
+    let urlPdf = 'Error';
+    try {
+       // Asumimos que generarReciboPDF está disponible globalmente (Service_PDF.gs)
+       urlPdf = generarReciboPDF(data.id, datosParaPDF);
+    } catch (ePdf) {
+       Logger.log("Error generando PDF Update: " + ePdf);
+    }
+
+    // Actualizar URL en Header (Columna 8, índice 7 en base 0... pero getRange usa base 1)
+    // Col 8 es la URL.
+    sheetHeader.getRange(rowIndex + 1, 8).setValue(urlPdf);
+
     // INVALIDAR CACHÉ
     clearCache('DASH_DATA_' + data.idCliente);
     clearCache('INV_DATA_' + data.idCliente);
     clearCache('STOCK_DATA_' + data.idCliente);
+    clearCache('STOCK_DATA_ALL');
 
-    return { success: true, message: "Movimiento actualizado." };
+    return { success: true, message: "Movimiento actualizado y PDF regenerado.", pdfUrl: urlPdf };
     
   } catch(e) {
     return { success: false, error: e.toString() };

@@ -82,6 +82,13 @@
             const current = filterCli.value;
             filterCli.innerHTML = opts;
             if (current) filterCli.value = current;
+
+            // CHECK EDIT MODE
+            if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'ENTRADA') {
+                setupEditEntradaMode(GLOBAL_STATE.tempEditData);
+                // Consume data immediately or keep it?
+                // Better keep it until cancel/save, but setupEdit... expects it.
+            }
         } catch (e) {
             alert("Error cargando clientes: " + e.message);
         }
@@ -559,7 +566,13 @@
 
             document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
             document.getElementById('entrada-fecha-hoy').textContent = new Date().toLocaleDateString();
-            addItemRow();
+
+            // CHECK EDIT MODE
+            if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'ENTRADA') {
+                setupEditEntradaMode(GLOBAL_STATE.tempEditData);
+            } else {
+                addItemRow();
+            }
         } catch (e) {
             showToast("Error cargando datos iniciales: " + e.message, 'danger');
         }
@@ -682,9 +695,11 @@
                 const v = tr.querySelector('.fecha-venc').value;
                 if (pid && c > 0 && p > 0) rows.push({ idProducto: pid, cantidadCajas: c, pesoKg: p, fechaVencimiento: v, lote: 0 });
             });
-            if (rows.length === 0) return showToast("Ingrese items validos", 'danger');
+            const isUpdate = btnSave.dataset.updateId;
+            const method = isUpdate ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
 
             const pay = {
+                id: isUpdate || null,
                 tipo: 'ENTRADA',
                 idCliente: idCli,
                 nombreCliente: selectCli.options[selectCli.selectedIndex].text,
@@ -695,20 +710,29 @@
                 productos: rows
             };
 
+            if (rows.length === 0) return showToast("Ingrese items validos", 'danger');
+
             btnSave.disabled = true;
             const originalText = btnSave.innerHTML;
             btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
             showToast("Procesando entrada...", 'primary');
 
             try {
-                const res = await serverCall('apiGuardarMovimiento', pay);
+                const res = await serverCall(method, pay);
                 btnSave.disabled = false; btnSave.innerHTML = originalText;
 
                 if (res.success) {
-                    showToast(`Entrada ${res.id} guardada exitosamente`, 'success');
-                    if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
-                    tbody.innerHTML = ''; addItemRow();
-                    document.getElementById('entrada-doc').value = ''; updateTotal();
+                    showToast(`Operación exitosa`, 'success');
+                    if (res.pdfUrl && !res.pdfUrl.startsWith('Error')) window.open(res.pdfUrl, '_blank');
+
+                    if (isUpdate) {
+                        // Reset and go back
+                        GLOBAL_STATE.tempEditData = null;
+                        loadView('view-movements');
+                    } else {
+                        tbody.innerHTML = ''; addItemRow();
+                        document.getElementById('entrada-doc').value = ''; updateTotal();
+                    }
                 } else {
                     showToast("Error: " + res.error, 'danger');
                 }
@@ -726,8 +750,46 @@
         const invBody = document.getElementById('salida-inv-body');
         const cartItems = document.getElementById('salida-cart-items');
         const cartEmpty = document.getElementById('salida-cart-empty');
-        const btnSave = document.getElementById('salida-btn-save');
+        const btnSave = document.getElementById('salida-btn-save'); // DEFINED HERE
         let CART = [];
+
+        // --- NEW: Event Listener for Editing ---
+        // --- NEW: Event Listener for Editing ---
+        if (!window.salidaListenerAdded) {
+            document.addEventListener('LoadCartData', (e) => {
+                const data = e.detail; // { items: [], id: '' }
+                // Need to access the CURRENT CART instance?
+                // Problem: CART is local to initSalida closure.
+                // If we make the listener global/once, it captures the FIRST CART instance (which is dead).
+                // SOLUTION: The listener MUST be re-added every time, BUT we must remove old ones.
+                // OR: Discard the custom event approach and call a global function that initSalida exposes?
+                // Better: initSalida attaches a specific handler to a global variable, and setupEditSalidaMode calls that global variable.
+            });
+        }
+
+        // RE-DESIGN:
+        // Expose a function to load data into THIS specific instance.
+        window.loadSalidaCartData = (items, id) => {
+            CART = [];
+            items.forEach(i => {
+                const pDef = GLOBAL_STATE.productos.find(p => String(p.id) === String(i.idProducto));
+                const nombre = pDef ? pDef.nombre : i.idProducto;
+                const nominal = pDef ? pDef.pesoNominal : 0;
+
+                CART.push({
+                    idProducto: i.idProducto,
+                    lote: i.lote,
+                    nombreProducto: nombre,
+                    salidaCajas: Math.abs(i.cantidadCajas), // FIX NEGATIVE
+                    salidaKg: Math.abs(i.pesoKg),           // FIX NEGATIVE
+                    maxPeso: 99999,
+                    nominal: nominal
+                });
+            });
+            renderCart();
+            btnSave.dataset.updateId = id;
+        };
+
 
         // Init Fecha
         const dateInput = document.getElementById('salida-fecha');
@@ -742,6 +804,8 @@
             clientes.forEach(x => opts += `<option value="${x.id}">${x.nombre}</option>`);
             selectCli.innerHTML = opts;
             GLOBAL_STATE.productos = productos;
+
+            // (Edit check moved to end of function)
         } catch (e) {
             alert("Error inicializando módulo de salida: " + e.message);
         }
@@ -753,8 +817,15 @@
                 CART = []; renderCart();
                 if (!inv || inv.length === 0) { document.getElementById('salida-empty').classList.remove('d-none'); return; }
 
-                document.getElementById('salida-empty').classList.add('d-none');
                 document.getElementById('salida-inv-container').classList.remove('d-none');
+
+                // CHECK EDIT MODE
+                if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'SALIDA') {
+                    // Call setup ONLY if we are not already setting it up.
+                    // But here we are inside onchange.
+                    // setupEditSalidaMode triggers onchange.
+                    // So we should probably let setupEditSalidaMode handle the flow.
+                }
 
                 const groups = {};
                 inv.forEach(i => { if (!groups[i.idProducto]) groups[i.idProducto] = { name: i.nombreProducto, items: [] }; groups[i.idProducto].items.push(i); });
@@ -844,7 +915,12 @@
 
         btnSave.onclick = async () => {
             if (CART.length === 0) return alert("El carrito está vacío.");
+
+            const isUpdate = btnSave.dataset.updateId;
+            const method = isUpdate ? 'apiActualizarMovimiento' : 'apiGuardarMovimiento';
+
             const pay = {
+                id: isUpdate || null,
                 tipo: 'SALIDA',
                 idCliente: selectCli.value,
                 nombreCliente: selectCli.options[selectCli.selectedIndex].text,
@@ -854,21 +930,48 @@
                 totalPeso: CART.reduce((a, b) => a + b.salidaKg, 0),
                 productos: CART.map(i => ({ idProducto: i.idProducto, lote: i.lote, cantidadCajas: i.salidaCajas * -1, pesoKg: i.salidaKg * -1 }))
             };
-            btnSave.disabled = true; btnSave.textContent = 'Procesando...';
+
+            // Check totals
+            if (pay.totalPeso <= 0) return alert("El peso total debe ser mayor a 0");
+
+            btnSave.disabled = true;
+            btnSave.textContent = isUpdate ? 'Actualizando...' : 'Procesando...';
+
             try {
-                const res = await serverCall('apiGuardarMovimiento', pay);
-                btnSave.disabled = false; btnSave.textContent = 'Confirmar Despacho';
+                const res = await serverCall(method, pay);
+                btnSave.disabled = false;
+                btnSave.textContent = isUpdate ? 'Actualizar Despacho' : 'Confirmar Despacho';
+
                 if (res.success) {
-                    alert("Éxito: " + res.id);
-                    if (res.pdfUrl) window.open(res.pdfUrl, '_blank');
-                    selectCli.onchange();
-                    document.getElementById('salida-doc').value = '';
+                    alert(res.message || "Operación exitosa.");
+                    if (res.pdfUrl && !res.pdfUrl.startsWith('Error')) window.open(res.pdfUrl, '_blank');
+
+                    if (isUpdate) {
+                        // Reset UI after update
+                        delete btnSave.dataset.updateId;
+                        btnSave.textContent = 'Confirmar Despacho';
+                        btnSave.classList.replace('btn-primary', 'btn-warning');
+                        // Return to history logic? Or just reset form
+                        selectCli.value = '';
+                        CART = []; renderCart();
+                        document.getElementById('view-movements-link').click();
+                    } else {
+                        selectCli.onchange();
+                        document.getElementById('salida-doc').value = '';
+                    }
                 } else alert(res.error);
             } catch (err) {
-                btnSave.disabled = false; btnSave.textContent = 'Confirmar Despacho';
+                btnSave.disabled = false;
+                btnSave.textContent = isUpdate ? 'Actualizar Despacho' : 'Confirmar Despacho';
                 alert("Error procesando salida: " + err.message);
             }
         };
+
+        // CHECK EDIT MODE STARTUP (Now that listeners are ready)
+        if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'SALIDA') {
+            setupEditSalidaMode(GLOBAL_STATE.tempEditData);
+        }
+
     }
 
     // --- VISTA: MOVIMIENTOS ---
@@ -900,10 +1003,21 @@
                 <td>${m.nombreCliente}</td>
                 <td><span class="badge ${badge}">${m.tipo}</span></td>
                 <td class="text-end fw-bold">${m.totalPeso}</td>
-                <td class="text-end pe-4"><a href="${m.url}" target="_blank" class="btn btn-sm btn-icon btn-light rounded-circle text-secondary"><i class="fas fa-file-pdf"></i></a></td>
+                <td class="text-end pe-4">
+                    <button class="btn btn-sm btn-icon btn-light rounded-circle text-primary me-1 btn-edit-mov" data-id="${m.id}" title="Editar Movimiento">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <a href="${m.url}" target="_blank" class="btn btn-sm btn-icon btn-light rounded-circle text-secondary" title="Ver PDF">
+                        <i class="fas fa-file-pdf"></i>
+                    </a>
+                </td>
               </tr>`;
             });
             tbody.innerHTML = html;
+            // Bind edit buttons
+            document.querySelectorAll('.btn-edit-mov').forEach(b => {
+                b.onclick = () => loadEditMovimiento(b.dataset.id);
+            });
         }
 
         loader.classList.remove('d-none');
@@ -935,6 +1049,192 @@
             );
             render(filtered);
         };
+    }
+
+    // --- CARGAR EDICIÓN DE MOVIMIENTO ---
+    async function loadEditMovimiento(idMovimiento) {
+        const loader = document.getElementById('mov-loading');
+        loader.classList.remove('d-none'); // This works because we are in view-movements
+
+        try {
+            const data = await serverCall('apiGetMovimientoDetalle', idMovimiento);
+
+            // STORE DATA FOR THE NEXT VIEW TO CONSUME
+            GLOBAL_STATE.tempEditData = data;
+
+            // NAVIGATE
+            if (data.header.tipo === 'ENTRADA') {
+                await loadView('view-entrada');
+            } else {
+                await loadView('view-salida');
+            }
+
+            // Loader handling is tricky because view changed.
+            // But loadView handles its own spinner on #app.
+        } catch (e) {
+            if (loader) loader.classList.add('d-none');
+            alert("Error cargando movimiento: " + e.message);
+        }
+    }
+
+    function loadEditEntrada(data) {
+        // 1. Switch View
+        document.querySelectorAll('.view-section').forEach(el => el.classList.add('d-none'));
+        document.getElementById('view-entrada').classList.remove('d-none');
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        document.querySelector('[onclick*="view-entrada"]').classList.add('active');
+
+        // 2. Populate Header
+        const selCli = document.getElementById('entrada-cliente');
+        selCli.value = data.header.idCliente;
+        document.getElementById('entrada-fecha').value = data.header.fecha;
+
+        // 3. Populate Items
+        const tbody = document.getElementById('entrada-tbody');
+        tbody.innerHTML = '';
+
+        // Función helper para agregar fila con datos
+        data.items.forEach(item => {
+            const tr = document.createElement('tr');
+            // Reconstruir opciones de producto (Necesitamos la lista GLOBAL_STATE.productos)
+            let prodOpts = '';
+            const prodsCliente = GLOBAL_STATE.productos.filter(p => String(p.idCliente) === String(data.header.idCliente));
+            prodsCliente.forEach(p => {
+                const sel = String(p.id) === String(item.idProducto) ? 'selected' : '';
+                prodOpts += `<option value="${p.id}" data-weight="${p.pesoNominal}" ${sel}>${p.nombre} (${p.empaque})</option>`;
+            });
+
+            tr.innerHTML = `
+                <td><select class="form-select form-select-sm inp-prod" required>${prodOpts}</select></td>
+                <td><input type="number" class="form-control form-control-sm inp-lote" value="${item.lote}" readonly title="Lote no editable"></td>
+                <td><input type="date" class="form-control form-control-sm inp-venc" value="${item.fechaVencimiento}"></td>
+                <td><input type="number" class="form-control form-control-sm inp-qty" value="${item.cantidadCajas}" placeholder="0.0"></td>
+                <td><div class="input-group input-group-sm"><input type="number" class="form-control fw-bold inp-peso" value="${item.pesoKg}" placeholder="0.00"><span class="input-group-text">kg</span></div></td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 btn-del"><i class="fas fa-trash"></i></button></td>
+            `;
+            tbody.appendChild(tr);
+
+            // Bind eventos fila (igual que en addItemRow)
+            const selProd = tr.querySelector('.inp-prod');
+            const inpQty = tr.querySelector('.inp-qty');
+            const inpPeso = tr.querySelector('.inp-peso');
+            const btnDel = tr.querySelector('.btn-del');
+
+            selProd.onchange = () => {
+                const opt = selProd.options[selProd.selectedIndex];
+                const nom = parseFloat(opt.dataset.weight) || 0;
+                tr.dataset.weight = nom;
+                if (inpQty.value) inpPeso.value = (parseFloat(inpQty.value) * nom).toFixed(2);
+            };
+            inpQty.oninput = () => {
+                const nom = parseFloat(tr.dataset.weight) || 0;
+                if (nom > 0) inpPeso.value = (parseFloat(inpQty.value) * nom).toFixed(2);
+            };
+            btnDel.onclick = () => tr.remove();
+        });
+
+        // 4. Change Save Button
+        const btnSave = document.getElementById('entrada-btn-save');
+
+        // Crear botón Cancelar si no existe
+        let btnCancel = document.getElementById('entrada-btn-cancel');
+        if (!btnCancel) {
+            btnCancel = document.createElement('button');
+            btnCancel.id = 'entrada-btn-cancel';
+            btnCancel.className = 'btn btn-secondary ms-2';
+            btnCancel.innerHTML = 'Cancelar Edición';
+            btnSave.parentNode.appendChild(btnCancel);
+        }
+        btnCancel.classList.remove('d-none');
+        btnCancel.onclick = () => {
+            resetEntradaForm(); // Necesitas definir esto o recargar
+            btnSave.onclick = saveEntrada; // Restaurar función original
+            btnSave.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Entrada';
+            btnSave.classList.replace('btn-primary', 'btn-success');
+            btnCancel.classList.add('d-none');
+            document.getElementById('view-movements-link').click(); // Volver a historial
+        };
+
+        btnSave.innerHTML = '<i class="fas fa-sync me-2"></i>Actualizar Movimiento';
+        btnSave.classList.replace('btn-success', 'btn-primary');
+
+        btnSave.onclick = async () => {
+            // Lógica de Actualización
+            const rows = [...tbody.querySelectorAll('tr')];
+            if (rows.length === 0) return alert("Debe haber al menos un producto.");
+
+            const productos = [];
+            for (let tr of rows) {
+                const idProd = tr.querySelector('.inp-prod').value;
+                const lote = tr.querySelector('.inp-lote').value;
+                const venc = tr.querySelector('.inp-venc').value;
+                const cajas = parseFloat(tr.querySelector('.inp-qty').value);
+                const peso = parseFloat(tr.querySelector('.inp-peso').value);
+
+                if (!idProd || !cajas || !peso) return alert("Complete todos los campos de los productos.");
+                productos.push({ idProducto: idProd, lote: lote, fechaVencimiento: venc, cantidadCajas: cajas, pesoKg: peso });
+            }
+
+            const payload = {
+                id: data.header.id, // ID ORIGINAL
+                tipo: 'ENTRADA',
+                idCliente: selCli.value, // Aunque no se debería cambiar cliente
+                docReferencia: 'Actualización', // O input si hubiera
+                fecha: document.getElementById('entrada-fecha').value,
+                totalCajas: productos.reduce((a, b) => a + b.cantidadCajas, 0),
+                totalPeso: productos.reduce((a, b) => a + b.pesoKg, 0),
+                productos: productos
+            };
+
+            btnSave.disabled = true;
+            try {
+                const res = await serverCall('apiActualizarMovimiento', payload);
+                if (res.success) {
+                    alert("Movimiento actualizado correctamente.");
+                    if (res.pdfUrl && !res.pdfUrl.startsWith('Error')) window.open(res.pdfUrl, '_blank');
+                    btnCancel.click(); // Reset UI
+                } else {
+                    alert("Error: " + res.error);
+                }
+            } catch (err) {
+                alert("Error de red: " + err.message);
+            } finally {
+                btnSave.disabled = false;
+            }
+        };
+
+        function resetEntradaForm() {
+            document.getElementById('entrada-form').reset();
+            document.getElementById('entrada-tbody').innerHTML = '';
+            // Restore default date
+            document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
+        }
+    }
+
+    function loadEditSalida(data) {
+        // 1. Switch View
+        document.querySelectorAll('.view-section').forEach(el => el.classList.add('d-none'));
+        document.getElementById('view-salida').classList.remove('d-none');
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        document.querySelector('[onclick*="view-salida"]').classList.add('active');
+
+        // 2. Populate Header
+        const selCli = document.getElementById('salida-cliente');
+        selCli.value = data.header.idCliente;
+
+        // Disparar evento para que initSalida cargue inventario
+        // Pero initSalida tiene un onchange que hace serverCall.
+        // Simularemos el cambio
+        selCli.dispatchEvent(new Event('change'));
+
+        setTimeout(() => {
+            document.getElementById('salida-fecha').value = data.header.fecha;
+            document.getElementById('salida-doc').value = data.header.docReferencia;
+
+            // Despachar evento para llenar carrito
+            const event = new CustomEvent('LoadCartData', { detail: { items: data.items, id: data.header.id } });
+            document.dispatchEvent(event);
+        }, 1500); // 1.5s delay
     }
 
     // --- VISTA: BILLING (UPDATED) ---
@@ -1063,5 +1363,134 @@
                 alert("Error generando PDF: " + err.message);
             }
         };
+    }
+
+    // --- HELPERS PARA EDICIÓN (Global Scope) ---
+    function setupEditEntradaMode(data) {
+        const selCli = document.getElementById('entrada-cliente');
+        const inpDate = document.getElementById('entrada-fecha');
+        const inpDoc = document.getElementById('entrada-doc');
+        const tbody = document.getElementById('entrada-tbody');
+        const btnSave = document.getElementById('entrada-btn-save');
+
+        // 1. Header
+        selCli.value = data.header.idCliente;
+        inpDate.value = data.header.fecha;
+        if (inpDoc) inpDoc.value = data.header.docReferencia || '';
+
+        // 2. Items
+        tbody.innerHTML = '';
+        data.items.forEach(item => {
+            // Find nominal
+            const pDef = GLOBAL_STATE.productos.find(p => String(p.id) === String(item.idProducto));
+            const nom = pDef ? pDef.pesoNominal : 0;
+
+            const tr = document.createElement('tr');
+            let prodOpts = '';
+
+            const prodsCliente = GLOBAL_STATE.productos.filter(p => String(p.idCliente) === String(data.header.idCliente));
+            prodsCliente.forEach(p => {
+                const sel = String(p.id) === String(item.idProducto) ? 'selected' : '';
+                prodOpts += `<option value="${p.id}" data-weight="${p.pesoNominal}" ${sel}>${p.nombre} (${p.empaque})</option>`;
+            });
+
+            // Format date
+            const venc = item.fechaVencimiento ? new Date(item.fechaVencimiento).toISOString().split('T')[0] : '';
+
+            tr.innerHTML = `
+            <td class="ps-3 text-start"><select class="form-select form-select-sm prod-select">${prodOpts}</select></td>
+            <td><input type="date" class="form-control form-control-sm fecha-venc" value="${venc}"></td>
+            <td><input type="number" step="0.1" class="form-control form-control-sm fw-bold bg-warning-subtle text-warning-emphasis input-cajas" placeholder="0" value="${item.cantidadCajas}"></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm fw-bold bg-success-subtle text-success input-peso" placeholder="0.00" value="${item.pesoKg}"></td>
+            <td class="text-center"><button class="btn btn-sm btn-link text-danger btn-del"><i class="fas fa-trash"></i></button></td>`;
+
+            tbody.appendChild(tr);
+
+            // Set nominal
+            tr.dataset.nominal = nom;
+
+            const sel = tr.querySelector('.prod-select');
+            const box = tr.querySelector('.input-cajas');
+            const wgt = tr.querySelector('.input-peso');
+            const del = tr.querySelector('.btn-del');
+
+            sel.onchange = () => {
+                const opt = sel.options[sel.selectedIndex];
+                tr.dataset.nominal = opt.dataset.weight || 0;
+                const bs = parseFloat(box.value) || 0;
+                const n = parseFloat(tr.dataset.nominal) || 0;
+                if (n > 0 && bs > 0) wgt.value = (bs * n).toFixed(2);
+                updateTotalsEntrada();
+            };
+            box.oninput = () => {
+                const n = parseFloat(tr.dataset.nominal) || 0;
+                const bs = parseFloat(box.value) || 0;
+                if (n > 0 && bs > 0) wgt.value = (bs * n).toFixed(2);
+                updateTotalsEntrada();
+            };
+            wgt.oninput = updateTotalsEntrada;
+            del.onclick = () => { tr.remove(); updateTotalsEntrada(); };
+        });
+
+        // 3. Update UI
+        btnSave.innerHTML = '<i class="fas fa-sync me-2"></i>Actualizar Entrada';
+        btnSave.classList.replace('btn-success', 'btn-primary');
+        btnSave.dataset.updateId = data.header.id;
+
+        let btnCancel = document.getElementById('entrada-btn-cancel');
+        if (btnCancel) {
+            btnCancel.classList.remove('d-none');
+            btnCancel.onclick = () => {
+                GLOBAL_STATE.tempEditData = null;
+                loadView('view-entrada');
+            };
+        }
+        updateTotalsEntrada();
+    }
+
+    function updateTotalsEntrada() {
+        let c = 0, p = 0;
+        document.querySelectorAll('#entrada-tbody tr').forEach(tr => {
+            c += parseFloat(tr.querySelector('.input-cajas').value) || 0;
+            p += parseFloat(tr.querySelector('.input-peso').value) || 0;
+        });
+        const tc = document.getElementById('entrada-total-cajas');
+        const tp = document.getElementById('entrada-total-peso');
+        if (tc) tc.textContent = c.toFixed(1);
+        if (tp) tp.textContent = p.toFixed(2) + ' Kg';
+    }
+
+    function setupEditSalidaMode(data) {
+        const selCli = document.getElementById('salida-cliente');
+        const btnSave = document.getElementById('salida-btn-save');
+
+        selCli.value = data.header.idCliente;
+        // Trigger load inventory
+        selCli.dispatchEvent(new Event('change'));
+
+        const checkInv = setInterval(() => {
+            const invBody = document.getElementById('salida-inv-body');
+            const empty = document.getElementById('salida-empty');
+
+            // Check if loaded (either items or empty message)
+            if (invBody.children.length > 0 || (empty && !empty.classList.contains('d-none'))) {
+                clearInterval(checkInv);
+
+                // Populate Fields
+                document.getElementById('salida-fecha').value = data.header.fecha;
+                document.getElementById('salida-doc').value = data.header.docReferencia || '';
+
+                // Dispatch - CALL GLOBAL FUNCTION DIRECTLY
+                if (window.loadSalidaCartData) {
+                    window.loadSalidaCartData(data.items, data.header.id);
+                } else {
+                    console.error("loadSalidaCartData not found!");
+                }
+
+                // Update Button
+                btnSave.innerHTML = '<i class="fas fa-sync me-2"></i>Actualizar Despacho';
+                btnSave.classList.replace('btn-warning', 'btn-primary');
+            }
+        }, 500);
     }
 </script>
