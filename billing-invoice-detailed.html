@@ -145,6 +145,7 @@
                 <th scope="col">Estado</th>
                 <th scope="col" class="num">Costo Base</th>
                 <th scope="col" class="num">Costo Exceso</th>
+                <th scope="col" class="num">Recargo Congelación</th>
                 <th scope="col" class="num">Total Día</th>
             </tr>
         </thead>
@@ -171,6 +172,7 @@
                      
                      var base = '$' + Number(row.costoBaseDia || 0).toLocaleString('es-CO', {maximumFractionDigits:0});
                      var exc = '$' + Number(row.costoExcDia || 0).toLocaleString('es-CO', {maximumFractionDigits:0});
+                     var recargo = '$' + Number(row.costoRecargo || 0).toLocaleString('es-CO', {maximumFractionDigits:0});
                      var total = '$' + Number(row.costoDia || 0).toLocaleString('es-CO', {maximumFractionDigits:0});
                 ?>
             <tr class="<?= rowClass ?>">
@@ -195,6 +197,10 @@
                 <td class="num">
                     <?= exc ?>
                 </td>
+                <td class="num"
+                    style="<?= (row.costoRecargo > 0) ? 'color: #e65100; font-weight:bold;' : 'color: #cfd8dc;' ?>">
+                    <?= recargo ?>
+                </td>
                 <td class="num">
                     <?= total ?>
                 </td>
@@ -202,7 +208,7 @@
             <? } ?>
             <? } else { ?>
             <tr>
-                <td colspan="8" class="text-center" style="padding: 20px;">No hay movimientos registrados en este
+                <td colspan="9" class="text-center" style="padding: 20px;">No hay movimientos registrados en este
                     período.</td>
             </tr>
             <? } ?>

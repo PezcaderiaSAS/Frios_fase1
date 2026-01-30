@@ -567,6 +567,9 @@
             document.getElementById('entrada-fecha').value = new Date().toISOString().split('T')[0];
             document.getElementById('entrada-fecha-hoy').textContent = new Date().toLocaleDateString();
 
+            // Default Frozen Check
+            if (document.getElementById('entrada-congelado')) document.getElementById('entrada-congelado').checked = true;
+
             // CHECK EDIT MODE
             if (GLOBAL_STATE.tempEditData && GLOBAL_STATE.tempEditData.header.tipo === 'ENTRADA') {
                 setupEditEntradaMode(GLOBAL_STATE.tempEditData);
@@ -707,6 +710,7 @@
                 fecha: document.getElementById('entrada-fecha').value,
                 totalCajas: parseFloat(document.getElementById('entrada-total-cajas').textContent),
                 totalPeso: parseFloat(document.getElementById('entrada-total-peso').textContent.replace(' Kg', '')),
+                esCongelado: document.getElementById('entrada-congelado').checked, // NEW FIELD
                 productos: rows
             };
 
@@ -732,6 +736,7 @@
                     } else {
                         tbody.innerHTML = ''; addItemRow();
                         document.getElementById('entrada-doc').value = ''; updateTotal();
+                        if (document.getElementById('entrada-congelado')) document.getElementById('entrada-congelado').checked = true;
                     }
                 } else {
                     showToast("Error: " + res.error, 'danger');
@@ -1292,7 +1297,11 @@
                 document.getElementById('bill-kpi-dias').textContent = res.dias;
                 document.getElementById('bill-kpi-base').textContent = '$' + res.costoBase.toLocaleString();
                 document.getElementById('bill-kpi-exce').textContent = '$' + res.costoExcedente.toLocaleString();
-                document.getElementById('bill-kpi-exce-dias').textContent = `${res.diasConExcedente} días con exceso`;
+
+                // Calc Total Recargos
+                const totalRecargos = res.detalleDiario.reduce((sum, d) => sum + (d.costoRecargo || 0), 0);
+                document.getElementById('bill-kpi-recargo').textContent = '$' + totalRecargos.toLocaleString();
+
                 document.getElementById('bill-kpi-total').textContent = '$' + res.totalPagar.toLocaleString();
 
                 const alertElem = document.getElementById('bill-alert-type');
@@ -1310,13 +1319,14 @@
                 let html = '';
                 res.detalleDiario.forEach(d => {
                     const trClass = d.excedente > 0 ? 'table-warning' : '';
-                    const diff = d.excedente > 0 ? `+${d.excedente.toFixed(2)}` : '-';
+                    const diff = d.excedenteKg > 0 ? `<small>${d.excedenteKg.toFixed(1)} Kg</small> <span class="text-muted">/</span> $${d.costoExcDia.toLocaleString()}` : '-';
                     html += `<tr class="${trClass}">
                     <td class="ps-4 font-monospace">${new Date(d.fecha).toLocaleDateString()}</td>
                     <td class="text-end">${d.stockKg.toLocaleString()}</td>
                     <td class="text-end fw-bold">${d.posUsadas.toFixed(2)}</td>
                     <td class="text-end text-muted">${d.posContratadas}</td>
-                    <td class="text-end fw-bold ${d.excedente > 0 ? 'text-danger' : 'text-success'}">${diff}</td>
+                    <td class="text-end fw-bold ${d.excedenteKg > 0 ? 'text-danger' : 'text-success'}">${diff}</td>
+                    <td class="text-end text-secondary fw-bold">${d.costoRecargo > 0 ? '$' + d.costoRecargo.toLocaleString() : '-'}</td>
                     <td class="text-end pe-4 fw-bold text-dark">$${d.costoDia.toLocaleString()}</td>
                   </tr>`;
                 });
@@ -1377,6 +1387,10 @@
         selCli.value = data.header.idCliente;
         inpDate.value = data.header.fecha;
         if (inpDoc) inpDoc.value = data.header.docReferencia || '';
+
+        // Restore Frozen State
+        const chkFrozen = document.getElementById('entrada-congelado');
+        if (chkFrozen) chkFrozen.checked = (data.header.esCongelado !== undefined && data.header.esCongelado !== null) ? data.header.esCongelado : true;
 
         // 2. Items
         tbody.innerHTML = '';

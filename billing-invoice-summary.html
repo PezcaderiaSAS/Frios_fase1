@@ -345,6 +345,16 @@ var costoExc = Math.round(data.metricas.costoExcedente || 0);
             </span>
         </div>
         <? } ?>
+        <? 
+        var costoRecargos = totalPagar - costoBase - costoExc;
+        if (costoRecargos > 0) { ?>
+        <div class="cost-row">
+            <span class="cost-label">Otros Servicios / Recargos (Refrigeración, etc.)</span>
+            <span class="cost-value">$
+                <?= Math.round(costoRecargos).toLocaleString('es-CO') ?>
+            </span>
+        </div>
+        <? } ?>
         <div class="cost-row total">
             <span class="cost-label">TOTAL A PAGAR</span>
             <span class="cost-value">$

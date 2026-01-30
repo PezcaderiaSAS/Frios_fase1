@@ -283,7 +283,8 @@ function apiGetMovimientoDetalle(idMovimiento) {
       tipo: headerRow[1],
       fecha: new Date(headerRow[2]).toISOString().split('T')[0],
       idCliente: headerRow[3],
-      docReferencia: headerRow[4]
+      docReferencia: headerRow[4],
+      esCongelado: headerRow[9] ? (JSON.parse(headerRow[9]).esCongelado) : undefined
     },
     items: items
   };
@@ -395,6 +396,9 @@ function apiActualizarMovimiento(payload) {
       data.totalCajas,
       data.totalPeso
     ]]);
+    
+    // Update Metadata (Col 10) separately to avoid overwriting PDF/User
+    sheetHeader.getRange(rowIndex + 1, 10).setValue(JSON.stringify({ esCongelado: data.esCongelado }));
     
     // 2. Borrar detalles viejos
     const details = sheetDetail.getDataRange().getValues();
@@ -709,7 +713,10 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
   
   // MAPA DE CAMBIOS POR FECHA PARA O(1) LOOKUP
   // mapCambios[timestamp_midnight] = delta_peso
+  // mapCambios[timestamp_midnight] = delta_peso
   const mapCambios = new Map();
+  const mapMovRecargos = {}; // New Map check
+
   
   // Pre-procesar movimientos (Header)
   const mapMovFecha = {};
@@ -718,6 +725,27 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
       const d = new Date(r[2]);
       d.setHours(0,0,0,0);
       mapMovFecha[r[0]] = d.getTime();
+      
+      // REGLA DE NEGOCIO: Recargo Refrigeración
+      // Si es ENTRADA y esCongelado == false, se aplica recargo.
+      if (r[1] === 'ENTRADA') {
+          let esCongelado = true; // Default
+          // Column 9 (Index 9) holds JSON
+          if (r[9]) {
+              try { esCongelado = JSON.parse(r[9]).esCongelado !== false; } catch (e) {} 
+          }
+          if (!esCongelado) {
+              const peso = Number(r[6] || 0); // Index 6 = Total Weight (r[7] in base 1, wait. r is simple array.. check mapping)
+              // Header indices: 0:ID, 1:TIPO, 2:FECHA, 3:CLIENTE, 4:REF, 5:CAJAS, 6:PESO
+              // r in forEach is array of values.
+              // r[6] is Total Weight.
+              const recargo = peso * 500;
+              const dateMs = d.getTime();
+              // Store surcharge
+              if (!mapMovRecargos[dateMs]) mapMovRecargos[dateMs] = 0;
+              mapMovRecargos[dateMs] += recargo;
+          }
+      }
     }
   });
   
@@ -784,10 +812,15 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
       costoExcDia = 0; 
     }
     
-    const totalDia = costoBaseDia + costoExcDia;
+    // RECARGO DE REFRIGERACIÓN
+    const costoRecargoDia = mapMovRecargos[todayMs] || 0;
+    
+    const totalDia = costoBaseDia + costoExcDia + costoRecargoDia;
     
     costoBaseTotal += costoBaseDia;
     costoExcedenteTotal += costoExcDia;
+    // Note: We might want to track Recargo separately in totalPagar
+    
     if (excedentePos > 0 && contrato.tipoPago === 'PREPAGO') diasConExcedente++;
 
     detalle.push({
@@ -800,6 +833,7 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
       costoDia: totalDia,
       costoBaseDia: costoBaseDia,
       costoExcDia: costoExcDia,
+      costoRecargo: costoRecargoDia, // New Field
       tipoCobro: contrato.tipoPago
     });
   }
@@ -810,7 +844,12 @@ function apiCalcularFacturacion(idCliente, fechaInicio, fechaFin) {
     costoBase: costoBaseTotal,
     costoExcedente: costoExcedenteTotal,
     diasConExcedente: diasConExcedente,
-    totalPagar: costoBaseTotal + costoExcedenteTotal,
+    diasConExcedente: diasConExcedente,
+    totalPagar: costoBaseTotal + costoExcedenteTotal + Object.values(mapMovRecargos).reduce((a,b)=>a+b, 0), // Include ALL surcharges? 
+    // Wait, mapMovRecargos includes surcharges OUTSIDE the range? No, we filter by date iterator.
+    // Better: sum it in the loop.
+    // FIX: I will sum it in the loop to be safe.
+    totalPagar: costoBaseTotal + costoExcedenteTotal + detalle.reduce((s, d) => s + (d.costoRecargo||0), 0),
     detalleDiario: detalle,
     tipoPago: contrato.tipoPago,
     contrato: contrato

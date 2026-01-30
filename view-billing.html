@@ -38,30 +38,35 @@
     <!-- Results Section -->
     <article id="bill-results" class="d-none">
         <!-- KPI Cards -->
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="card p-3 text-center h-100 bg-light">
-                    <small class="text-muted fw-bold text-uppercase">Días Totales</small>
-                    <div id="bill-kpi-dias" class="display-6 fw-bold text-dark">0</div>
+        <div class="row g-2 mb-4">
+            <div class="col-6 col-md-2">
+                <div class="card p-2 text-center h-100 bg-light">
+                    <small class="text-muted fw-bold text-xs text-uppercase">Días</small>
+                    <div id="bill-kpi-dias" class="fs-4 fw-bold text-dark">0</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card p-2 text-center h-100 bg-white border-info">
+                    <small class="text-muted fw-bold text-xs text-uppercase">Base</small>
+                    <div id="bill-kpi-base" class="fs-5 fw-bold text-info">$0</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <div class="card p-2 text-center h-100 bg-warning-subtle border-0">
+                    <small class="text-warning-emphasis fw-bold text-xs text-uppercase">Excedentes</small>
+                    <div id="bill-kpi-exce" class="fs-5 fw-bold text-warning-emphasis">$0</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card p-3 text-center h-100 bg-white border-info">
-                    <small class="text-muted fw-bold text-uppercase">Base Contrato</small>
-                    <div id="bill-kpi-base" class="fs-3 fw-bold text-info">$0</div>
+                <div class="card p-2 text-center h-100 bg-secondary-subtle border-0">
+                    <small class="text-secondary fw-bold text-xs text-uppercase">Servicios/Recargos</small>
+                    <div id="bill-kpi-recargo" class="fs-5 fw-bold text-secondary">$0</div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
-                <div class="card p-3 text-center h-100 bg-warning-subtle border-0">
-                    <small class="text-warning-emphasis fw-bold text-uppercase">Excedentes</small>
-                    <div id="bill-kpi-exce" class="fs-3 fw-bold text-warning-emphasis">$0</div>
-                    <small id="bill-kpi-exce-dias" class="text-muted">0 días con exceso</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card p-3 text-center h-100 bg-dark text-white">
-                    <small class="opacity-50 fw-bold text-uppercase">Total a Pagar</small>
-                    <div id="bill-kpi-total" class="fs-2 fw-bold">$0</div>
+            <div class="col-12 col-md-3">
+                <div class="card p-2 text-center h-100 bg-dark text-white">
+                    <small class="opacity-50 fw-bold text-xs text-uppercase">Total a Pagar</small>
+                    <div id="bill-kpi-total" class="fs-3 fw-bold">$0</div>
                 </div>
             </div>
         </div>
@@ -103,8 +108,9 @@
                             <th class="text-end">Stock (Kg)</th>
                             <th class="text-end">Pos. Usadas</th>
                             <th class="text-end">Contratado</th>
-                            <th class="text-end">Excedente</th>
-                            <th class="text-end pe-4">Costo Día</th>
+                            <th class="text-end">Exceso (Kg / $)</th>
+                            <th class="text-end text-secondary">Congelación</th>
+                            <th class="text-end pe-4">Total Día</th>
                         </tr>
                     </thead>
                     <tbody id="bill-table-body">

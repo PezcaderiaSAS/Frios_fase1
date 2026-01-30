@@ -198,7 +198,8 @@ function registrarMovimiento(data) {
       data.totalCajas,
       data.totalPeso,
       urlPdf, 
-      Session.getActiveUser().getEmail()
+      Session.getActiveUser().getEmail(),
+      JSON.stringify({ esCongelado: data.esCongelado }) // Columna 10: Metadata
     ]);
 
     // 5. Guardar Detalles
