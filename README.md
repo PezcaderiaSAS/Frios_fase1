@@ -1,102 +1,61 @@
-# WMS ColdChain Pro - Documentación Técnica y Manual de Operaciones
+# WMS ColdChain Pro ❄️
 
-Sistema profesional de gestión de inventarios (WMS) para cadena de frío, optimizado para alto rendimiento, integridad de datos y escalabilidad en Google Workspace.
+**Sistema de Gestión de Almacenes (WMS) para Logística de Fríos**
 
----
+Este proyecto es una aplicación web integral desarrollada sobre **Google Apps Script** para gestionar el inventario, movimientos y facturación de una empresa de almacenamiento en frío ("Pezcaderia SAS").
 
-## 🚀 Estado del Proyecto: FINALIZADO
-Este sistema ha sido modernizado y robustecido con las siguientes características empresariales:
+## 🚀 Características Principales
 
-### 1. Integridad y Seguridad (Backend)
-*   **Bloqueo de Concurrencia (`LockService`)**: Evita que dos usuarios generen el mismo ID o sobrescriban datos simultáneamente. Usa `waitLock(30000)` para encolar peticiones.
-*   **Validación de Datos (Schema Validation)**: Sistema estricto que rechaza movimientos o clientes con datos incompletos antes de tocar la base de datos.
-*   **Lecturas Optimizadas**: Lectura por lotes (`Batch Reading`) en lugar de escaneo celda por celda.
+### 1. Gestión de Inventario
+- **Entradas:** Registro detallado de lotes, pesos, fechas de vencimiento y estado de congelación (Control de calidad).
+- **Salidas:** Despacho de mercancía con validación de stock en tiempo real (FIFO/FEFO).
+- **Stock en Vivo:** Panel de control con visualización de ocupación y alertas de vencimiento.
 
-### 2. Rendimiento (Escalabilidad)
-*   **Sistema de Caché Inteligente (`CacheService`)**:
-    *   **Dashboard**: Carga instantánea (cache de 30 min).
-    *   **Inventarios**: Cache de 60 min.
-    *   **Invalidación Automática**: Al guardar una entrada/salida, el sistema limpia la caché afectada para mostrar datos frescos de inmediato.
-*   **Modernización JS**: Migración completa de "Callback Hell" a `Async/Await` + Promesas.
+### 2. Facturación Inteligente
+- **Cálculo Automático:** Generación de cortes de facturación basados en contratos personalizados por cliente.
+- **Detección de Excedentes:** Cobro automático de posiciones o kilos extra según la capacidad contratada.
+- **Recargos de Servicio:** Aplicación automática intergrada de recargos por refrigeración para mercancía no congelada (granularidad por ítem).
+- **Reportes:** Generación de PDFs de facturación (Resumen Ejecutivo e Informe Detallado día a día).
 
-### 3. Interfaz (Frontend)
-*   **HTML Semántico**: Mantenibilidad mejorada y accesibilidad.
-*   **Diseño Premium**: Bootstrap 5 + FontAwesome 6 con estética "Glassmorphism".
-*   **SPA Real**: Navegación sin recargas de página.
+### 3. Trazabilidad y Seguridad
+- **Historial Completo:** Registro inmutable de todos los movimientos.
+- **Edición Auditada:** Capacidad de corregir movimientos históricos con regeneración automática de saldos y PDFs.
+- **Backups:** Respaldo automático de datos críticos.
 
----
+## 🛠️ Tecnologías Utilizadas
 
-## 🛠️ Guía de Instalación y Despliegue
+- **Backend:** Google Apps Script (Servelss, basado en V8 Engine).
+- **Base de Datos:** Google Sheets (Estructura relacional simulada: Header/Detail).
+- **Frontend:** HTML5, CSS3, JavaScript (ES6+).
+- **Framework UI:** Bootstrap 5 (Diseño Responsivo y Moderno).
+- **Generación de Documentos:** Google Docs & PDF Service.
 
-### Requisitos Previos
-*   Cuenta de Google Workspace.
-*   Node.js instalado (para usar `clasp`).
+## 📂 Estructura del Proyecto
 
-### Opción A: Despliegue Manual (Copiar y Pegar)
-1.  Crear nuevo proyecto en [script.google.com](https://script.google.com).
-2.  Copiar el contenido de todos los archivos `.gs` y `.html` de la carpeta local.
-3.  Actualizar `Configuration.gs` con los IDs reales de la Hoja de Cálculo y Carpetas de Drive.
+- `Controller.gs`: Lógica de negocio central y orquestación de APIs.
+- `Database.gs`: Capa de persistencia y acceso a datos (CRUD Google Sheets).
+- `Service_PDF.gs`: Motor de generación de reportes y facturas.
+- `Cleanup.gs`: Mantenimiento y limpieza de archivos temporales.
+- `index.html`: Punto de entrada de la aplicación (SPA Router).
+- `js-logic.html`: Lógica del cliente (Frontend Controller).
+- `*.html`: Vistas parciales (`view-entrada`, `view-salida`, `view-billing`, etc.).
 
-### Opción B: Despliegue con CLASP (Recomendado para Desarrollo)
-`clasp` permite subir el código directamente desde tu PC y gestionar versiones.
+## 📦 Instalación y Despliegue
 
-1.  **Instalar Clasp**:
-    ```bash
-    npm install -g @google/clasp
-    ```
-2.  **Login**:
-    ```bash
-    clasp login
-    ```
-3.  **Vincular Proyecto Existente** (Obtén el Script ID desde Configuración del Proyecto en el navegador):
-    ```bash
-    clasp clone "TU_SCRIPT_ID"
-    ```
-4.  **Subir Cambios**:
-    ```bash
-    clasp push
-    ```
-5.  **Desplegar Nueva Versión Web**:
-    ```bash
-    clasp deploy --description "Versión final con Cache y LockService"
-    ```
+1. **Requisitos:** Cuenta de Google Workspace.
+2. **Configuración:**
+   - Clonar el proyecto en Google Apps Script.
+   - Configurar el ID de la Hoja de Cálculo en `CONFIG.SPREADSHEET_ID`.
+   - Definir carpetas de destino en Google Drive para PDFs.
+3. **Despliegue:**
+   - Publicar como "Aplicación Web".
+   - Ejecutar como: "Yo" (Propietario).
+   - Acceso: "Cualquiera" o "Dominio de la Organización".
 
----
+## 👥 Uso
 
-## 🧹 Mantenimiento Automático (Trigger)
+Consultar el [Manual de Usuario](docs/USER_MANUAL.md) para instrucciones detalladas de operación.
 
-Para evitar que Google Drive se llene de PDFs temporales, el sistema incluye un script de limpieza.
+## 📄 Licencia
 
-**Configuración Inicial (Obligatoria):**
-1.  Abrir el editor de Apps Script.
-2.  Ir al archivo `Cleanup.gs`.
-3.  Ejecutar la función `installCleanupTrigger()` una sola vez.
-4.  **Resultado**: El sistema borrará automáticamente cada madrugada (3:00 AM) los PDFs de facturación con más de 24 horas de antigüedad.
-
----
-
-## 📂 Estructura de Archivos Clave
-
-| Archivo | Responsabilidad | Nivel de Importancia |
-| :--- | :--- | :--- |
-| `Controller.gs` | Orquestador, Validación (Schemas), Caché, API Pública. | ⭐ CRÍTICO |
-| `Database.gs` | Conexión a Sheets, LockService, Transacciones Atómicas. | ⭐ CRÍTICO |
-| `js-logic.html` | Lógica Frontend, Router, Llamadas Async, UI State. | ⭐ ALTO |
-| `Cleanup.gs` | Mantenimiento y limpieza de archivos temporales. | MEDIO |
-| `Configuration.gs` | Variables de entorno (IDs, Timezone). | MEDIO |
-
----
-
-## ⚠️ Solución de Problemas Comunes
-
-**1. "Error generando ID" o "Timeout" en guardado:**
-El sistema de bloqueo espera 30 segundos. Si falla, es porque la hoja está bajo uso masivo extremo. Reintentar suele solucionar el problema.
-
-**2. Los datos no se actualizan en el Dashboard:**
-El sistema usa Caché. Si realizaste cambios manuales directamente en la hoja de cálculo, la caché no se enterará. Debes esperar 30 min o guardar un movimiento "ficticio" para forzar la limpieza de caché.
-
-**3. "ScriptError: Authorization Required":**
-Si añades nuevas librerías o scopes, debes volver a ejecutar una función en el editor para conceder permisos.
-
----
-**Desarrollado para Pezcaderia SAS | Fase Final**
+Propiedad de **Pezcaderia SAS**. Uso exclusivo autorizado.
