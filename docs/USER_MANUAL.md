@@ -40,8 +40,9 @@ Para dar salida o retirar mercancía:
 1. **Seleccionar Cliente.**
 2. **Seleccionar Producto:** El sistema solo mostrará productos con stock disponible (FIFO por defecto).
 3. **Indicar Cantidad:**
-   - Puede retirar por Cajas o por Kilos.
-   - El sistema validará que no retire más de lo disponible en el lote seleccionado.
+   - Puede retirar por Cajas o por Kilos manualmente.
+   - **NUEVO:** Marque la casilla **"Todo"** para seleccionar automáticamente todo el stock disponible en ese lote.
+   - El sistema validará que no retire más de lo disponible.
 4. **Guardar:** Se registrará la salida y se actualizará el stock inmediatamente.
 
 ---
@@ -79,4 +80,4 @@ Para generar los cobros del periodo:
 ## 6. Soporte
 
 Para reportar fallos o solicitar nuevas funcionalidades, contacte al administrador del sistema.
-**Versión Actual:** 1.2.0 (Enero 2026)
+**Versión Actual:** 1.2.1 (Enero 2026)

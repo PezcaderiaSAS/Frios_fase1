@@ -2,6 +2,14 @@
 
 Todas las modificaciones notables a este proyecto serán documentadas en este archivo.
 
+## [1.2.1] - 31-01-2026
+### Añadido
+- **Salida Completa (Take-All):** Nueva casilla "Todo" en el módulo de Salidas para despachar lotes completos con un solo clic.
+- **Mejora Visual (UX):** Diferenciación cromática clara entre vistas: Verde Menta para Entradas y Naranja Pastel para Salidas.
+
+### Corregido
+- **Input Lag en Salidas:** Se solucionó un bug donde el cursor "saltaba" o invertía caracteres al escribir rápido en el carrito de salidas, optimizando el ciclo de renderizado.
+
 ## [1.2.0] - 30-01-2026
 ### Añadido
 - **Estado de Congelación por Ítem:**

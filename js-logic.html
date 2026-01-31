@@ -872,19 +872,26 @@
 
             let html = '';
             CART.forEach((item, idx) => {
+                const disabled = item.isFullExit ? 'disabled bg-light' : '';
                 html += `<div class="card mb-2 shadow-sm border bg-light"><div class="card-body p-2">
                  <div class="d-flex justify-content-between align-items-start mb-2">
                     <strong class="small text-truncate w-75" title="${item.nombreProducto}">${item.nombreProducto}</strong>
-                    <button class="btn-close btn-close-sm btn-rem" data-idx="${idx}"></button>
+                    <div class="d-flex align-items-center">
+                         <div class="form-check form-check-inline me-2 m-0 p-0" style="min-height:auto">
+                             <input class="form-check-input chk-full small" type="checkbox" data-idx="${idx}" id="chk-${idx}" ${item.isFullExit ? 'checked' : ''} style="transform: scale(0.8)">
+                             <label class="form-check-label text-xs text-muted" for="chk-${idx}">Todo</label>
+                         </div>
+                        <button class="btn-close btn-close-sm btn-rem" data-idx="${idx}"></button>
+                    </div>
                  </div>
                  <div class="row g-2">
                     <div class="col-5">
                         <label class="form-label text-xs text-muted mb-0">Cajas</label>
-                        <input type="number" class="form-control form-control-sm inp-cajas" data-idx="${idx}" value="${item.salidaCajas}">
+                        <input type="number" class="form-control form-control-sm inp-cajas" data-idx="${idx}" value="${item.salidaCajas}" ${disabled}>
                     </div>
                     <div class="col-7">
                         <label class="form-label text-xs text-muted mb-0">Peso (Max ${item.maxPeso.toFixed(0)})</label>
-                        <input type="number" class="form-control form-control-sm fw-bold text-dark inp-peso" data-idx="${idx}" value="${item.salidaKg}">
+                        <input type="number" class="form-control form-control-sm fw-bold text-dark inp-peso" data-idx="${idx}" value="${item.salidaKg}" ${disabled}>
                     </div>
                  </div></div></div>`;
             });
@@ -894,20 +901,38 @@
             document.querySelectorAll('.btn-rem').forEach(b => { b.onclick = () => { CART.splice(b.dataset.idx, 1); renderCart(); } });
 
             const bindInputs = () => {
+                document.querySelectorAll('.chk-full').forEach(chk => {
+                    chk.onchange = (e) => {
+                        const idx = e.target.dataset.idx;
+                        const i = CART[idx];
+                        i.isFullExit = e.target.checked;
+
+                        if (i.isFullExit) {
+                            i.salidaCajas = i.cajas; // Assuming 'cajas' is in the item object from DB
+                            i.salidaKg = i.maxPeso;  // maxPeso IS the max weight from DB
+                        } else {
+                            // Optional: Reset or keep? Keeping looks natural.
+                        }
+                        renderCart(); // Safe to re-render on click
+                    };
+                });
+
                 document.querySelectorAll('.inp-cajas').forEach(inp => {
                     inp.oninput = (e) => {
-                        const i = CART[e.target.dataset.idx];
+                        const idx = e.target.dataset.idx;
+                        const i = CART[idx];
                         i.salidaCajas = parseFloat(e.target.value) || 0;
+
                         if (i.nominal > 0) {
                             let w = i.salidaCajas * i.nominal;
+                            // Update Model
                             i.salidaKg = (w > i.maxPeso) ? parseFloat(i.maxPeso.toFixed(2)) : parseFloat(w.toFixed(2));
+
+                            // Update DOM directly (No Re-render)
+                            const weightInput = document.querySelectorAll('.inp-peso')[idx];
+                            if (weightInput) weightInput.value = i.salidaKg;
                         }
-                        renderCart();
-                        const newInps = document.querySelectorAll('.inp-cajas');
-                        if (newInps[e.target.dataset.idx]) {
-                            newInps[e.target.dataset.idx].focus();
-                            newInps[e.target.dataset.idx].value = e.target.value;
-                        }
+                        updateTotal();
                     };
                 });
                 document.querySelectorAll('.inp-peso').forEach(inp => {
