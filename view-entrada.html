@@ -11,10 +11,10 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <label class="form-label">Cliente</label>
-                    <select id="entrada-cliente" class="form-select bg-light fw-bold text-dark">
-                        <option value="" disabled selected>Seleccione...</option>
-                        <!-- Injected by JS -->
-                    </select>
+                    <input class="form-control bg-light fw-bold text-dark" list="list-clientes" id="entrada-cliente"
+                        placeholder="Buscar cliente..." autocomplete="off">
+                    <datalist id="list-clientes"></datalist>
+                    <datalist id="list-productos"></datalist>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Fecha Movimiento</label>
@@ -28,7 +28,7 @@
 
             <!-- Items Table -->
             <div class="table-responsive border mb-3 rounded-3">
-                <table class="table mb-0 align-middle">
+                <table class="table table-sm table-striped table-hover mb-0" id="entrada-table">
                     <thead class="bg-light">
                         <tr>
                             <th class="ps-3" style="width: 35%">Producto</th>

@@ -15,10 +15,9 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Cliente Origen</label>
-                        <select id="salida-cliente" class="form-select bg-light fw-bold">
-                            <option value="" disabled selected>Seleccione...</option>
-                            <!-- Injected by JS -->
-                        </select>
+                        <input class="form-control bg-light fw-bold" list="list-clientes-salida" id="salida-cliente"
+                            placeholder="Buscar cliente..." autocomplete="off">
+                        <datalist id="list-clientes-salida"></datalist>
                     </div>
 
                     <!-- Loader -->
@@ -29,7 +28,7 @@
                     <!-- Inventory Table -->
                     <div id="salida-inv-container" class="table-responsive border rounded d-none"
                         style="max-height: 550px;">
-                        <table class="table table-sm table-hover mb-0 small checkbox-table">
+                        <table class="table table-sm table-striped table-hover mb-0 small checkbox-table">
                             <thead class="table-light sticky-top" style="z-index: 5;">
                                 <tr>
                                     <th class="ps-3 py-2">Producto / Lote</th>

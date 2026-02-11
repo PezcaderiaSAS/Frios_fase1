@@ -37,6 +37,21 @@ function generateNextId(sheetName, prefix) {
 }
 
 /**
+ * Obtiene todos los movimientos de cabecera.
+ * Asume que SHEETS y getSheet están definidos en otro lugar.
+ */
+function getMovimientos() {
+    // Assuming SHEETS.MOV_HEADER and getSheet function are defined elsewhere
+    // For this context, we'll use the direct sheet access method
+    const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MOV_HEADER'); // Assuming 'MOV_HEADER' is the sheet name
+    if (!sheet || sheet.getLastRow() < 2) return []; // Return empty if sheet is empty or doesn't exist
+
+    return sheet.getDataRange().getValues().slice(1)
+      .map(r => ({ id: r[0], tipo: r[1], fecha: r[2], idCliente: r[3], ref: r[4] }));
+  }
+
+/**
  * Guarda el movimiento y genera el PDF
  */
 function registrarMovimiento(data) {
